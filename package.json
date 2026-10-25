@@ -1,0 +1,32 @@
+{
+  "name": "nimbalyst-bmad-board",
+  "version": "0.1.0",
+  "description": "BMAD Board: Jira-like board over BMAD v6/v7 files for Nimbalyst",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "vite build && vite build --config vite.backend.config.ts && node scripts/validate.mjs",
+    "build:panel": "vite build",
+    "build:backend": "vite build --config vite.backend.config.ts",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate": "node scripts/validate.mjs"
+  },
+  "dependencies": {
+    "smol-toml": "^1.4.2"
+  },
+  "devDependencies": {
+    "@nimbalyst/extension-sdk": "0.7.1",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0"
+  }
+}

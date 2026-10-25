@@ -1,0 +1,43 @@
+{
+  "id": "dev.local.bmad-board",
+  "name": "BMAD Board",
+  "version": "0.1.0",
+  "description": "Jira-like board over BMAD v6/v7 files: backlog with epics, swimlane board, story details, drag to change status and run the matching command.",
+  "author": "Svyat",
+  "main": "dist/index.js",
+  "styles": "dist/index.css",
+  "apiVersion": "1.0.0",
+  "permissions": {
+    "filesystem": true,
+    "ai": true
+  },
+  "contributions": {
+    "backendModules": [
+      {
+        "id": "board-runtime",
+        "entry": "dist/backend.js",
+        "runtime": "utility-process",
+        "permissions": ["ai-sessions"],
+        "enablement": {
+          "default": "disabled",
+          "promptOn": "firstUse",
+          "purpose": "Read and update BMAD story files in this project, and start agent sessions for board actions (create story, dev, review) and show their state on the cards."
+        }
+      }
+    ],
+    "panels": [
+      {
+        "id": "board",
+        "title": "BMAD Board",
+        "icon": "view_kanban",
+        "placement": "fullscreen",
+        "order": 60,
+        "aiSupported": false,
+        "tooltip": "Backlog, board and details for BMAD epics and stories."
+      }
+    ],
+    "keybindings": [
+      { "key": "cmd+alt+b", "command": "dev.local.bmad-board.board.toggle" }
+    ]
+  }
+}
