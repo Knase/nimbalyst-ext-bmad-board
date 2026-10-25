@@ -17,7 +17,7 @@
         "id": "board-runtime",
         "entry": "dist/backend.js",
         "runtime": "utility-process",
-        "permissions": ["ai-sessions"],
+        "permissions": ["ai-sessions", "mcp-server-register"],
         "enablement": {
           "default": "disabled",
           "promptOn": "firstUse",
