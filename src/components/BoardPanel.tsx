@@ -110,16 +110,21 @@ export function BoardPanel({ host }: PanelHostProps) {
   const version = model?.version ?? 'none';
   const columns = version === 'v7' ? COLUMNS_V7 : COLUMNS_V6;
   const epicById = useMemo(() => new Map((model?.epics ?? []).map((e) => [e.id, e])), [model]);
-  const visibleStories = useMemo(
-    () =>
-      (model?.stories ?? []).filter(
-        (s) =>
-          (settings.showDropped || !s.dropped) &&
-          (!epicFilter || s.epicId === epicFilter) &&
-          (!columnFilter || s.column === columnFilter),
-      ),
-    [model, settings.showDropped, epicFilter, columnFilter],
+  // Done epics bury the live work; hide them unless asked for or picked in the epic filter.
+  const shownEpics = useMemo(
+    () => (model?.epics ?? []).filter((e) => settings.showDoneEpics || epicFilter === e.id || e.status !== 'done'),
+    [model, settings.showDoneEpics, epicFilter],
   );
+  const visibleStories = useMemo(() => {
+    const ok = new Set(shownEpics.map((e) => e.id));
+    return (model?.stories ?? []).filter(
+      (s) =>
+        ok.has(s.epicId) &&
+        (settings.showDropped || !s.dropped) &&
+        (!epicFilter || s.epicId === epicFilter) &&
+        (!columnFilter || s.column === columnFilter),
+    );
+  }, [model, shownEpics, settings.showDropped, epicFilter, columnFilter]);
   const selected = model?.stories.find((s) => s.id === selectedId) ?? null;
 
   // ── running things ────────────────────────────────────────────────────────
@@ -293,7 +298,7 @@ export function BoardPanel({ host }: PanelHostProps) {
         </div>
         <select className="bb-select" value={epicFilter} onChange={(e) => setEpicFilter(e.target.value)} aria-label="Epic filter">
           <option value="">All epics</option>
-          {model?.epics.map((e) => <option key={e.id} value={e.id}>{e.num} · {e.title}</option>)}
+          {model?.epics.filter((e) => e.total > 0).map((e) => <option key={e.id} value={e.id}>{e.num.toUpperCase()} · {e.title}</option>)}
         </select>
         <select className="bb-select" value={columnFilter} onChange={(e) => setColumnFilter(e.target.value)} aria-label="Status filter">
           <option value="">All statuses</option>
@@ -313,6 +318,9 @@ export function BoardPanel({ host }: PanelHostProps) {
             {model.initiatives.map((i) => <option key={i} value={i}>{i}</option>)}
           </select>
         )}
+        <label className="bb-check" title="Show epics whose status is done">
+          <input type="checkbox" checked={settings.showDoneEpics} onChange={(e) => changeSettings({ ...settings, showDoneEpics: e.target.checked })} /> done epics
+        </label>
         <span className="bb-spacer" />
         <ModelSelect value={settings.model} onChange={(m) => changeSettings({ ...settings, model: m })} />
         <span className="bb-chip" title="Detected BMAD version">{version === 'none' ? 'no BMAD' : version}</span>
@@ -337,7 +345,7 @@ export function BoardPanel({ host }: PanelHostProps) {
           {!model && !error && <div className="bb-empty">Loading…</div>}
           {model && !empty && view === 'backlog' && (
             <Backlog
-              epics={model.epics.filter((e) => !epicFilter || e.id === epicFilter)}
+              epics={shownEpics.filter((e) => !epicFilter || e.id === epicFilter)}
               stories={visibleStories}
               sessions={model.sessions}
               selectedId={selectedId}
@@ -351,7 +359,7 @@ export function BoardPanel({ host }: PanelHostProps) {
           {model && !empty && view === 'board' && (
             <Board
               columns={columns}
-              epics={model.epics}
+              epics={shownEpics}
               stories={visibleStories}
               sessions={model.sessions}
               selectedId={selectedId}

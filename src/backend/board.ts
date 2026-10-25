@@ -2,12 +2,12 @@
  * Board assembly: detect the BMAD version, load the right adapter, and apply
  * status writes. No host APIs here, only files, so it is unit-testable.
  */
-import { join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { detect, findEpicsText, type Detection } from './config';
 import { buildDetail } from './detail';
-import { isDir, isFile } from './fsutil';
-import { loadV6, setStatusV6, V6_STORY_STATUSES } from './v6';
+import { isDir, isFile, tryReadText } from './fsutil';
+import { loadV6, parseStoryLocation, setStatusV6, V6_STORY_STATUSES } from './v6';
 import { loadV7, setStatusV7, type V7Result } from './v7';
 import type {
   Banner,
@@ -24,6 +24,19 @@ export interface LoadedBoard {
   model: Omit<BoardModel, 'sessions' | 'rev'>;
   v7?: V7Result;
   initiative: string | null;
+}
+
+/** Where `<key>.md` story files live: `story_location` first, then next to the sprint file. */
+export function storyDirsFor(sprintFile: string, projectRoot: string): string[] {
+  const dirs: string[] = [];
+  const loc = parseStoryLocation(tryReadText(sprintFile) ?? '');
+  if (loc) {
+    const cleaned = loc.replace(/\{project-root\}/g, projectRoot).replace(/^\.\//, '');
+    dirs.push(isAbsolute(cleaned) ? cleaned : resolve(projectRoot, cleaned));
+  }
+  const here = dirname(sprintFile);
+  dirs.push(here, join(here, 'stories'));
+  return [...new Set(dirs)];
 }
 
 export function loadBoard(projectRoot: string, requestedInitiative?: string): LoadedBoard {
@@ -74,7 +87,9 @@ export function loadBoard(projectRoot: string, requestedInitiative?: string): Lo
       }
     }
   } else if (detection.version === 'v6' && detection.sprintFile) {
-    const loaded = loadV6(detection.sprintFile, findEpicsText(config, detection.sprintFile));
+    const loaded = loadV6(detection.sprintFile, findEpicsText(config, detection.sprintFile), {
+      storyDirs: storyDirsFor(detection.sprintFile, config.projectRoot),
+    });
     epics = loaded.epics;
     stories = loaded.stories;
     const unknown = stories.filter((s) => s.unknownStatus).length;

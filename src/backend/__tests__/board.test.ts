@@ -48,6 +48,91 @@ function v6(): string {
   return sprint;
 }
 
+const REAL_SPRINT = `generated: "2026-06-19"
+project: printbox
+story_location: _bmad-output/implementation-artifacts/stories
+
+epic_priority:
+  shipped:
+    epics: [epic-a, epic-af]
+
+development_status:
+
+  epic-a: done
+
+  epic-3: done
+
+  epic-cm: in-progress
+  cm-1-license-keys-free-cap: done
+  cm-4-product-site-docs-privacy: review
+  epic-cm-retrospective: done
+  retro-cm-ai-1-prelaunch-gate-script: ready-for-dev
+
+  ar-32-shared-file-hash-fix: done
+  epic-af: done
+  af-23a-the-tags-tab-follows-the-selection: in-progress
+  retro-sp-ai-2-story-acs-schema-claim: review
+
+  epic-sp: in-progress
+  sp-1-counting-pre-pass: done
+
+  epic-ar: done
+
+  epic-mr: in-progress
+  mr-14b-the-rp-card-retires: ready-for-dev
+  mesh-markers-producer: done
+
+  epic-pb: in-progress
+  pb-01-protocol-spike-real-reports: in-progress
+  epic-pb-retrospective: optional
+`;
+
+describe('BMAD v6 with alphabetic epics (real-world sprint file)', () => {
+  beforeEach(() => {
+    put('_bmad-output/implementation-artifacts/sprint-status.yaml', REAL_SPRINT);
+    // stale planning doc: numeric epics that the sprint no longer has
+    put('_bmad-output/planning-artifacts/epics.md', '## Epic 1: Nothing Is Invisible\n### Story 1.1: Run scans\n### Story 1.2: Live progress\n## Epic 3: Old\n### Story 3.1: Old story\n');
+    put('_bmad-output/implementation-artifacts/stories/cm-1-license-keys-free-cap.md', '# Story\n\n## Story\nKeys.\n');
+  });
+
+  it('places stories by prefix, retro rows by retro-<epic>-ai, orphans by position', () => {
+    const b = loadBoard(root);
+    const epicOf = (id: string) => b.model.stories.find((s) => s.id === id)!.epicId;
+    expect(epicOf('cm-1-license-keys-free-cap')).toBe('epic-cm');
+    expect(epicOf('retro-cm-ai-1-prelaunch-gate-script')).toBe('epic-cm');
+    expect(epicOf('ar-32-shared-file-hash-fix')).toBe('epic-ar'); // prefix beats position (sits under epic-cm)
+    expect(epicOf('retro-sp-ai-2-story-acs-schema-claim')).toBe('epic-sp'); // sits under epic-af
+    expect(epicOf('mr-14b-the-rp-card-retires')).toBe('epic-mr');
+    expect(epicOf('mesh-markers-producer')).toBe('epic-mr'); // no prefix: epic line above it
+    expect(epicOf('pb-01-protocol-spike-real-reports')).toBe('epic-pb');
+  });
+
+  it('shows the sprint file, not the stale epics.md', () => {
+    const b = loadBoard(root);
+    expect(b.model.epics.map((e) => e.id)).toEqual(['epic-a', 'epic-3', 'epic-cm', 'epic-af', 'epic-sp', 'epic-ar', 'epic-mr', 'epic-pb']);
+    expect(b.model.stories.some((s) => s.ref.startsWith('1.'))).toBe(false); // epic 1 is not in the sprint
+    expect(b.model.stories.some((s) => s.ref === '3.1')).toBe(false); // epic-3 is done: its plan-only stories are not resurrected
+    expect(b.model.epics.find((e) => e.id === 'epic-cm')).toMatchObject({ title: 'Epic CM', done: 1, total: 3, retrospective: 'done' });
+    expect(b.model.stories.filter((s) => s.movable === false)).toHaveLength(0);
+  });
+
+  it('finds story files in story_location and keeps file order', () => {
+    const b = loadBoard(root);
+    expect(b.model.stories.find((s) => s.id === 'cm-1-license-keys-free-cap')!.file).toMatch(/stories\/cm-1-license-keys-free-cap\.md$/);
+    expect(b.model.stories.find((s) => s.id === 'cm-4-product-site-docs-privacy')!.title).toBe('Product site docs privacy');
+    expect(b.model.stories.map((s) => s.id).slice(0, 3)).toEqual(['cm-1-license-keys-free-cap', 'cm-4-product-site-docs-privacy', 'retro-cm-ai-1-prelaunch-gate-script']);
+    expect(b.model.stories.find((s) => s.id.startsWith('retro-cm'))!.type).toBe('retro');
+    expect(storyDetail(b, 'cm-1-license-keys-free-cap').summary).toBe('Keys.');
+  });
+
+  it('writes a status and bumps an alphabetic epic out of backlog', () => {
+    put('_bmad-output/implementation-artifacts/sprint-status.yaml', 'development_status:\n  epic-pr: backlog\n  pr-3-cmds: backlog\n');
+    const sprint = join(root, '_bmad-output/implementation-artifacts/sprint-status.yaml');
+    expect(applyStatus(loadBoard(root), 'pr-3-cmds', 'in-progress').epicBumped).toBe('in-progress');
+    expect(readFileSync(sprint, 'utf8')).toBe('development_status:\n  epic-pr: in-progress\n  pr-3-cmds: in-progress\n');
+  });
+});
+
 describe('BMAD v6', () => {
   it('detects v6, groups epics and columns, keeps unplanned stories locked', () => {
     v6();

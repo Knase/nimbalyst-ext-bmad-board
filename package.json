@@ -1,6 +1,6 @@
 {
   "name": "nimbalyst-bmad-board",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "BMAD Board: Jira-like board over BMAD v6/v7 files for Nimbalyst",
   "private": true,
   "type": "module",

@@ -1100,8 +1100,17 @@ function v6Column(status) {
       return V6_LEGACY_READY.has(status) ? { column: "ready", known: true } : { column: "backlog", known: false };
   }
 }
+function epicOfKey(key, epics, lastEpic) {
+  const retro = /^retro-([A-Za-z0-9]+)-ai-/i.exec(key);
+  if (retro && epics.has(retro[1].toLowerCase())) return retro[1].toLowerCase();
+  const first = key.split("-")[0].toLowerCase();
+  if (epics.has(first)) return first;
+  if (/^\d+$/.test(first) && /^\d+-\d+/.test(key)) return first;
+  return lastEpic;
+}
 function parseSprintStatus(text2) {
   const out = { epics: /* @__PURE__ */ new Map(), retros: /* @__PURE__ */ new Map(), stories: [] };
+  const rows = [];
   let inDev = false;
   for (const line of text2.split(/\r?\n/)) {
     if (/^development_status\s*:/.test(line)) {
@@ -1111,25 +1120,48 @@ function parseSprintStatus(text2) {
     if (inDev && /^\S/.test(line) && !line.startsWith("#")) inDev = false;
     if (!inDev) continue;
     const m = /^\s+([A-Za-z0-9_.-]+)\s*:\s*([A-Za-z0-9_-]+)\s*(?:#.*)?$/.exec(line);
-    if (!m) continue;
-    const [, key, status] = m;
+    if (m) rows.push({ key: m[1], status: m[2] });
+  }
+  for (const { key, status } of rows) {
     let k;
-    if (k = /^epic-(\d+)$/.exec(key)) out.epics.set(Number(k[1]), status);
-    else if (k = /^epic-(\d+)-retrospective$/.exec(key)) out.retros.set(Number(k[1]), status);
-    else if (k = /^(\d+)-(\d+)(?:-(.+))?$/.exec(key)) {
-      out.stories.push({ key, epic: Number(k[1]), num: Number(k[2]), slug: k[3] ?? "", status });
+    if (k = /^epic-([A-Za-z0-9]+)$/.exec(key)) out.epics.set(k[1].toLowerCase(), status);
+    else if (k = /^epic-([A-Za-z0-9]+)-retrospective$/.exec(key)) out.retros.set(k[1].toLowerCase(), status);
+  }
+  const known = new Set(out.epics.keys());
+  let last = null;
+  for (const { key, status } of rows) {
+    let k;
+    if (k = /^epic-([A-Za-z0-9]+)$/.exec(key)) {
+      last = k[1].toLowerCase();
+      continue;
     }
+    if (/^epic-[A-Za-z0-9]+-retrospective$/.test(key)) continue;
+    const retro = key.startsWith("retro-");
+    const numbered = /^[A-Za-z0-9]+-\d+[a-z]?(?:-(.+))?$/i.exec(key);
+    out.stories.push({
+      key,
+      epic: epicOfKey(key, known, last),
+      slug: retro ? key.replace(/^retro-[a-z0-9]+-ai-\d*[a-z]*-?/i, "") : numbered?.[1] ?? key.replace(/^[A-Za-z0-9]+-\d+[a-z]?-?/i, ""),
+      status,
+      retro
+    });
   }
   return out;
 }
+function parseStoryLocation(text2) {
+  const m = /^story_location\s*:\s*["']?([^"'#\r\n]+?)["']?\s*(?:#.*)?$/m.exec(text2);
+  return m ? m[1].trim() : null;
+}
+const normNum = (n) => n.replace(/^0+(?=\d)/, "").toLowerCase();
 function parseEpicsMd(text2) {
   const doc = { epics: /* @__PURE__ */ new Map(), stories: /* @__PURE__ */ new Map() };
   for (const line of text2.split(/\r?\n/)) {
     let m;
-    if (m = /^##\s+Epic\s+(\d+)\s*[:\-–—.]\s*(.+?)\s*$/i.exec(line)) {
-      doc.epics.set(Number(m[1]), { title: m[2] });
-    } else if (m = /^###\s+Story\s+(\d+)\.(\d+)\s*[:\-–—.]\s*(.+?)\s*$/i.exec(line)) {
-      doc.stories.set(`${m[1]}.${m[2]}`, { epic: Number(m[1]), num: Number(m[2]), title: m[3] });
+    if (m = /^##\s+Epic\s+([A-Za-z0-9]+)\s*[:\-–—.]\s*(.+?)\s*$/i.exec(line)) {
+      doc.epics.set(m[1].toLowerCase(), { title: m[2] });
+    } else if (m = /^###\s+Story\s+([A-Za-z0-9]+)[.-](\d+[A-Za-z]?)\s*[:\-–—.]\s*(.+?)\s*$/i.exec(line)) {
+      const epic = m[1].toLowerCase();
+      doc.stories.set(`${epic}.${normNum(m[2])}`, { epic, num: normNum(m[2]), title: m[3] });
     }
   }
   return doc;
@@ -1139,38 +1171,51 @@ const humanize = (slug) => {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 };
 const slugify = (title) => title.toLowerCase().normalize("NFKD").replace(/[^\x00-\x7f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-function loadV6(sprintFile, epicsText) {
+function loadV6(sprintFile, epicsText, options = {}) {
   const sprint = parseSprintStatus(readText(sprintFile));
   const doc = parseEpicsMd(epicsText);
-  const storyDir = dirname(sprintFile);
+  const dirs = options.storyDirs?.length ? options.storyDirs : [dirname(sprintFile)];
+  const findFile = (key) => {
+    for (const d of dirs) {
+      const f = join(d, `${key}.md`);
+      if (isFile(f)) return f;
+    }
+    return void 0;
+  };
   const stories = [];
   const seen = /* @__PURE__ */ new Set();
   for (const s of sprint.stories) {
-    const fromDoc = doc.stories.get(`${s.epic}.${s.num}`);
-    const column = v6Column(s.status);
-    const file = join(storyDir, `${s.key}.md`);
+    const epic = s.epic ?? "other";
+    const numbered = /^([A-Za-z0-9]+)-(\d+[A-Za-z]?)/.exec(s.key);
+    const fromDoc = !s.retro && numbered ? doc.stories.get(`${numbered[1].toLowerCase()}.${normNum(numbered[2])}`) : void 0;
+    const column = v6Column(s.status === "optional" ? "backlog" : s.status);
     stories.push({
       id: s.key,
       ref: s.key,
-      epicId: `epic-${s.epic}`,
-      title: fromDoc?.title ?? (humanize(s.slug) || `Story ${s.epic}.${s.num}`),
+      epicId: `epic-${epic}`,
+      title: fromDoc?.title ?? (humanize(s.slug) || s.key),
       status: s.status,
       column: column.column,
       blocked: false,
       dropped: false,
       after: [],
-      file: isFile(file) ? file : void 0,
+      type: s.retro ? "retro" : void 0,
+      file: findFile(s.key),
       hasPlan: false,
       movable: true,
-      unknownStatus: !column.known
+      unknownStatus: !column.known && s.status !== "optional"
     });
-    seen.add(`${s.epic}.${s.num}`);
+    if (numbered && !s.retro) seen.add(`${numbered[1].toLowerCase()}.${normNum(numbered[2])}`);
   }
+  const sprintEmpty = sprint.epics.size === 0 && sprint.stories.length === 0;
   for (const [k, d] of doc.stories) {
     if (seen.has(k)) continue;
+    const epicStatus = sprint.epics.get(d.epic);
+    const live = sprintEmpty || epicStatus !== void 0 && epicStatus !== "done";
+    if (!live) continue;
     stories.push({
       id: `${d.epic}-${d.num}-${slugify(d.title)}`,
-      ref: k,
+      ref: `${d.epic}.${d.num}`,
       epicId: `epic-${d.epic}`,
       title: d.title,
       status: "",
@@ -1184,36 +1229,34 @@ function loadV6(sprintFile, epicsText) {
       unknownStatus: false
     });
   }
-  stories.sort((a, b) => {
-    const [ae, an] = numbers(a);
-    const [be, bn] = numbers(b);
-    return ae - be || an - bn;
-  });
-  const epicNums = /* @__PURE__ */ new Set([...sprint.epics.keys(), ...doc.epics.keys(), ...stories.map((s) => numbers(s)[0])]);
-  const epics = [...epicNums].sort((a, b) => a - b).map((n) => {
-    const id = `epic-${n}`;
-    const mine = stories.filter((s) => s.epicId === id);
+  const order = [...sprint.epics.keys()];
+  for (const st of stories) {
+    const id = st.epicId.slice("epic-".length);
+    if (!order.includes(id)) order.push(id);
+  }
+  if (sprintEmpty) {
+    for (const id of doc.epics.keys()) if (!order.includes(id)) order.push(id);
+  }
+  const epics = order.map((id) => {
+    const epicId = `epic-${id}`;
+    const mine = stories.filter((s) => s.epicId === epicId);
     const done = mine.filter((s) => s.column === "done").length;
-    const recorded = sprint.epics.get(n);
+    const recorded = sprint.epics.get(id);
     const derived = !mine.length || mine.every((s) => s.column === "backlog") ? "backlog" : done === mine.length ? "done" : "in-progress";
     return {
-      id,
-      num: String(n),
-      title: doc.epics.get(n)?.title ?? `Epic ${n}`,
+      id: epicId,
+      num: id,
+      title: doc.epics.get(id)?.title ?? (id === "other" ? "Other" : `Epic ${id.toUpperCase()}`),
       status: recorded ?? derived,
       statusDerived: recorded === void 0,
       storyIds: mine.map((s) => s.id),
       done,
       total: mine.length,
-      retrospective: sprint.retros.get(n),
+      retrospective: sprint.retros.get(id),
       after: []
     };
   });
   return { epics, stories };
-}
-function numbers(s) {
-  const m = /^(\d+)[-.](\d+)/.exec(s.id) ?? /^(\d+)[-.](\d+)/.exec(s.ref);
-  return m ? [Number(m[1]), Number(m[2])] : [0, 0];
 }
 function setStatusV6(sprintFile, storyKey, status) {
   const text2 = readText(sprintFile);
@@ -1222,10 +1265,11 @@ function setStatusV6(sprintFile, storyKey, status) {
   let next = edit.text;
   const result = {};
   if (status === "in-progress") {
-    const m = /^(\d+)-/.exec(storyKey);
-    if (m) {
-      const epicEdit = editYamlLine(next, `epic-${m[1]}`, "in-progress");
-      if (epicEdit.found && epicEdit.changed && epicEdit.previous === "backlog") {
+    const epic = parseSprintStatus(text2).stories.find((s) => s.key === storyKey)?.epic;
+    if (epic) {
+      const spelled = new RegExp(`^\\s+(epic-${epic.replace(/[^A-Za-z0-9]/g, "")})\\s*:`, "im").exec(next)?.[1];
+      const epicEdit = spelled ? editYamlLine(next, spelled, "in-progress") : null;
+      if (epicEdit && epicEdit.found && epicEdit.changed && epicEdit.previous === "backlog") {
         next = epicEdit.text;
         result.epicBumped = "in-progress";
       }
@@ -1456,6 +1500,17 @@ status: ${input.status}
   }
   return { created: true };
 }
+function storyDirsFor(sprintFile, projectRoot) {
+  const dirs = [];
+  const loc = parseStoryLocation(tryReadText(sprintFile) ?? "");
+  if (loc) {
+    const cleaned = loc.replace(/\{project-root\}/g, projectRoot).replace(/^\.\//, "");
+    dirs.push(isAbsolute(cleaned) ? cleaned : resolve(projectRoot, cleaned));
+  }
+  const here = dirname(sprintFile);
+  dirs.push(here, join(here, "stories"));
+  return [...new Set(dirs)];
+}
 function loadBoard(projectRoot, requestedInitiative) {
   const detection = detect(projectRoot);
   const { config } = detection;
@@ -1497,7 +1552,9 @@ function loadBoard(projectRoot, requestedInitiative) {
       }
     }
   } else if (detection.version === "v6" && detection.sprintFile) {
-    const loaded = loadV6(detection.sprintFile, findEpicsText(config, detection.sprintFile));
+    const loaded = loadV6(detection.sprintFile, findEpicsText(config, detection.sprintFile), {
+      storyDirs: storyDirsFor(detection.sprintFile, config.projectRoot)
+    });
     epics = loaded.epics;
     stories = loaded.stories;
     const unknown = stories.filter((s) => s.unknownStatus).length;

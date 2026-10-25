@@ -1,7 +1,7 @@
 {
   "id": "dev.local.bmad-board",
   "name": "BMAD Board",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Jira-like board over BMAD v6/v7 files: backlog with epics, swimlane board, story details, drag to change status and run the matching command.",
   "author": "Svyat",
   "main": "dist/index.js",

@@ -39,7 +39,7 @@ export function Backlog(p: BacklogProps) {
     list.push(s);
     byEpic.set(s.epicId, list);
   }
-  const shown = p.epics.filter((e) => byEpic.has(e.id) || e.total === 0);
+  const shown = p.epics.filter((e) => byEpic.has(e.id) || (e.total === 0 && e.status !== 'done'));
   if (!shown.length) return <div className="bb-empty">Nothing matches the filters.</div>;
 
   return (
@@ -57,7 +57,7 @@ export function Backlog(p: BacklogProps) {
             >
               <span className="bb-caret">{open ? '▾' : '▸'}</span>
               <span className="bb-epic-title">
-                <span className="bb-epic-num">{epic.num}</span> {epic.title}
+                <span className="bb-epic-num">{epic.num.toUpperCase()}</span> {epic.title}
               </span>
               {epic.refined === false && <span className="bb-chip bb-chip-warn" title="epic file says refined: false">unrefined</span>}
               {epic.after.length > 0 && <span className="bb-muted" title="Epic depends on">after {epic.after.join(', ')}</span>}

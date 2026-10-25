@@ -218,6 +218,8 @@ export interface BoardSettings {
   writeStatusBeforeRun: boolean;
   pollMs: number;
   showDropped: boolean;
+  /** Show epics whose status is `done` (hidden by default: they bury the live work). */
+  showDoneEpics: boolean;
   rulesV6: ColumnRules;
   rulesV7: ColumnRules;
   actions: ContextAction[];
@@ -234,6 +236,7 @@ export const DEFAULT_SETTINGS: BoardSettings = {
   writeStatusBeforeRun: true,
   pollMs: 2500,
   showDropped: false,
+  showDoneEpics: false,
   rulesV6: {
     backlog: { status: 'backlog', command: '' },
     ready: { status: 'ready-for-dev', command: '/bmad-create-story {key}', statusByCommand: true },

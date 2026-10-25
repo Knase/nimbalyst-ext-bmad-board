@@ -48,7 +48,7 @@ export function Board(p: BoardProps) {
           <section key={epic.id} className="bb-lane">
             <header className="bb-lane-head" onClick={() => p.onToggle(epic.id)} onContextMenu={(e) => p.onEpicMenu(e, epic)}>
               <span className="bb-caret">{open ? '▾' : '▸'}</span>
-              <span className="bb-epic-num">{epic.num}</span> {epic.title}
+              <span className="bb-epic-num">{epic.num.toUpperCase()}</span> {epic.title}
               <span className="bb-count">{epic.done}/{epic.total}</span>
             </header>
             {open && (
