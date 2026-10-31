@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ColumnId, Epic, SessionInfo, Story } from '../shared/types';
 import { COLUMN_LABEL } from '../shared/types';
 import { SessionDot } from './Backlog';
@@ -11,6 +11,12 @@ export interface BoardProps {
   selectedId: string | null;
   collapsed: Set<string>;
   onToggle(epicId: string): void;
+  /** Done column: show its cards (false: only the count). */
+  showDone: boolean;
+  onToggleDone(): void;
+  widths: Partial<Record<ColumnId, number>>;
+  /** `null` resets the column to flexible width. */
+  onResize(col: ColumnId, width: number | null): void;
   onSelect(storyId: string): void;
   onMove(story: Story, column: ColumnId): void;
   onStoryMenu(e: React.MouseEvent, story: Story): void;
@@ -26,19 +32,60 @@ interface DragState {
 export function Board(p: BoardProps) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const [live, setLive] = useState<Partial<Record<ColumnId, number>>>({});
+  const gridRef = useRef<HTMLDivElement>(null);
   const byId = new Map(p.stories.map((s) => [s.id, s]));
   const lanes = p.epics.filter((e) => p.stories.some((s) => s.epicId === e.id));
   if (!lanes.length) return <div className="bb-empty">Nothing matches the filters.</div>;
 
-  const cols = `repeat(${p.columns.length}, minmax(190px, 1fr))`;
+  const widthOf = (c: ColumnId) => live[c] ?? p.widths[c];
+  const cols = p.columns.map((c) => (widthOf(c) ? `${widthOf(c)}px` : 'minmax(190px, 1fr)')).join(' ');
+
+  /** Drag the right edge of a header cell. Live while dragging, saved once on release. */
+  const startResize = (e: React.PointerEvent, col: ColumnId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const cell = (e.currentTarget as HTMLElement).parentElement!;
+    const startX = e.clientX;
+    const startW = cell.getBoundingClientRect().width;
+    let w = startW;
+    const move = (ev: PointerEvent) => {
+      w = Math.round(Math.min(640, Math.max(120, startW + ev.clientX - startX)));
+      setLive((cur) => ({ ...cur, [col]: w }));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setLive((cur) => {
+        const { [col]: _gone, ...rest } = cur;
+        return rest;
+      });
+      if (w !== startW) p.onResize(col, w);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const cellKey = (epicId: string, col: ColumnId) => `${epicId}|${col}`;
 
   return (
     <div className="bb-board">
-      <div className="bb-board-head" style={{ gridTemplateColumns: cols }}>
+      <div className="bb-board-head" ref={gridRef} style={{ gridTemplateColumns: cols }}>
         {p.columns.map((c) => (
           <div key={c} className="bb-colhead">
             {COLUMN_LABEL[c]} <span className="bb-count">{p.stories.filter((s) => s.column === c).length}</span>
+            {c === 'done' && (
+              <button className="bb-btn bb-btn-xs" onClick={p.onToggleDone} title={p.showDone ? 'Hide done stories' : 'Show done stories'}>
+                {p.showDone ? 'Hide' : 'Show'}
+              </button>
+            )}
+            <span
+              className="bb-resizer"
+              role="separator"
+              aria-label={`Resize ${COLUMN_LABEL[c]} column`}
+              title="Drag to resize, double-click to reset"
+              onPointerDown={(e) => startResize(e, c)}
+              onDoubleClick={() => p.onResize(c, null)}
+            />
           </div>
         ))}
       </div>
@@ -76,7 +123,12 @@ export function Board(p: BoardProps) {
                         if (story && droppable) p.onMove(story, col);
                       }}
                     >
-                      {cards.map((s) => (
+                      {col === 'done' && !p.showDone && cards.length > 0 && (
+                        <button className="bb-hidden-done" onClick={p.onToggleDone} title="Show done stories">
+                          {cards.length} done · show
+                        </button>
+                      )}
+                      {(col !== 'done' || p.showDone) && cards.map((s) => (
                         <article
                           key={s.id}
                           className={`bb-card${p.selectedId === s.id ? ' bb-selected' : ''}${s.dropped ? ' bb-dropped' : ''}${s.movable ? '' : ' bb-locked'}`}

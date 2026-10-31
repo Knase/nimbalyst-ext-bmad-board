@@ -22,22 +22,28 @@ export interface ConfirmSpec {
   confirmLabel: string;
   /** Offered when a command is attached: just change the status. */
   statusOnly?: () => void;
-  run(dontAsk: boolean): void;
+  /** Initial model / effort of the session; the user may change them for this run only. */
+  model?: string;
+  effort?: string;
+  run(dontAsk: boolean, model: string, effort: string): void;
 }
 
 export function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose(): void }) {
   const [dontAsk, setDontAsk] = useState(false);
+  const [model, setModel] = useState(spec.model ?? '');
+  const [effort, setEffort] = useState(spec.effort ?? '');
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
+      // Enter on a select only opens/changes it; everything else confirms.
+      if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement) && !(e.target instanceof HTMLSelectElement)) {
         onClose();
-        spec.run(dontAsk);
+        spec.run(dontAsk, model, effort);
       }
     };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
-  }, [spec, dontAsk, onClose]);
+  }, [spec, dontAsk, model, effort, onClose]);
 
   return (
     <div className="bb-modal-backdrop" onMouseDown={onClose}>
@@ -48,6 +54,10 @@ export function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose():
           <>
             <p>Starts a new agent session with:</p>
             <pre className="bb-cmd">{spec.command}</pre>
+            <div className="bb-row">
+              <label>Model <ModelSelect value={model} onChange={setModel} /></label>
+              <label>Effort <EffortSelect value={effort} onChange={setEffort} /></label>
+            </div>
           </>
         )}
         {spec.allowDontAsk && spec.command && (
@@ -62,7 +72,7 @@ export function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose():
               Only change status
             </button>
           )}
-          <button className="bb-btn bb-btn-primary" onClick={() => { onClose(); spec.run(dontAsk); }}>
+          <button className="bb-btn bb-btn-primary" onClick={() => { onClose(); spec.run(dontAsk, model, effort); }}>
             {spec.confirmLabel}
           </button>
         </div>
@@ -74,11 +84,27 @@ export function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose():
 const MODELS = ['claude-code:sonnet', 'claude-code:opus', 'claude-code:haiku'];
 const EFFORTS = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
 
-export function ModelSelect({ value, onChange, className }: { value: string; onChange(v: string): void; className?: string }) {
-  const list = MODELS.includes(value) ? MODELS : [value, ...MODELS];
+export function ModelSelect({ value, onChange, className, allowDefault, title }: {
+  value: string;
+  onChange(v: string): void;
+  className?: string;
+  /** Offer an empty "default" entry (per-step settings). */
+  allowDefault?: boolean;
+  title?: string;
+}) {
+  const list = !value || MODELS.includes(value) ? MODELS : [value, ...MODELS];
   return (
-    <select className={className ?? 'bb-select'} value={value} onChange={(e) => onChange(e.target.value)} title="Model for sessions started from the board">
+    <select className={className ?? 'bb-select'} value={value} onChange={(e) => onChange(e.target.value)} title={title ?? 'Model for sessions started from the board'}>
+      {allowDefault && <option value="">default</option>}
       {list.map((m) => <option key={m} value={m}>{m}</option>)}
+    </select>
+  );
+}
+
+export function EffortSelect({ value, onChange, className, title }: { value: string; onChange(v: string): void; className?: string; title?: string }) {
+  return (
+    <select className={className ?? 'bb-select'} value={value} onChange={(e) => onChange(e.target.value)} title={title ?? 'Effort for sessions started from the board'}>
+      {EFFORTS.map((x) => <option key={x} value={x}>{x || 'default'}</option>)}
     </select>
   );
 }
@@ -89,6 +115,8 @@ function RuleRow({ col, rule, onChange }: { col: ColumnId; rule: ColumnRule; onC
       <span className="bb-rule-col">{COLUMN_LABEL[col]}</span>
       <input className="bb-input bb-input-sm" value={rule.status} placeholder="status to write" onChange={(e) => onChange({ ...rule, status: e.target.value })} />
       <input className="bb-input" value={rule.command} placeholder="command (empty = status only)" onChange={(e) => onChange({ ...rule, command: e.target.value })} />
+      <ModelSelect allowDefault value={rule.model ?? ''} onChange={(model) => onChange({ ...rule, model })} title="Model for this step (default = settings)" />
+      <EffortSelect value={rule.effort ?? ''} onChange={(effort) => onChange({ ...rule, effort })} title="Effort for this step" />
       <label className="bb-check" title="Always ask, even with 'don't ask'">
         <input type="checkbox" checked={Boolean(rule.forceConfirm)} onChange={(e) => onChange({ ...rule, forceConfirm: e.target.checked })} /> ask
       </label>
@@ -117,10 +145,12 @@ export function SettingsDialog({ settings, version, onSave, onClose }: {
         <div className="bb-settings-scroll">
           <h3>Sessions</h3>
           <div className="bb-form">
-            <label>Model <ModelSelect value={s.model} onChange={(model) => patch({ model })} /></label>
-            <label>Effort
-              <select className="bb-select" value={s.effort} onChange={(e) => patch({ effort: e.target.value })}>
-                {EFFORTS.map((x) => <option key={x} value={x}>{x || 'default'}</option>)}
+            <label>Default model <ModelSelect value={s.model} onChange={(model) => patch({ model })} title="Used by steps that have no model of their own" /></label>
+            <label>Default effort <EffortSelect value={s.effort} onChange={(effort) => patch({ effort })} /></label>
+            <label>Order
+              <select className="bb-select" value={s.sortOrder} onChange={(e) => patch({ sortOrder: e.target.value as BoardSettings['sortOrder'] })}>
+                <option value="reverse">newest first (reverse file order)</option>
+                <option value="file">file order</option>
               </select>
             </label>
             <label className="bb-check"><input type="checkbox" checked={s.dontAsk} onChange={(e) => patch({ dontAsk: e.target.checked })} /> Don't ask before starting a command</label>
@@ -132,7 +162,7 @@ export function SettingsDialog({ settings, version, onSave, onClose }: {
           </div>
 
           <h3>Drop on a column ({version === 'none' ? 'v6' : version})</h3>
-          <p className="bb-muted">Placeholders: {'{key} {ref} {epic} {file} {title}'}</p>
+          <p className="bb-muted">Placeholders: {'{key} {ref} {epic} {file} {title}'}. Model / effort per step; “default” falls back to the defaults above (or to the header, when its override box is ticked).</p>
           {cols.map((c) => (
             <RuleRow key={c} col={c} rule={rules[c] ?? { status: '', command: '' }} onChange={(r) => setRule(c, r)} />
           ))}
@@ -147,6 +177,8 @@ export function SettingsDialog({ settings, version, onSave, onClose }: {
               </select>
               <input className="bb-input" value={a.v6 ?? ''} placeholder="v6 command" onChange={(e) => setAction(i, { ...a, v6: e.target.value || undefined })} />
               <input className="bb-input" value={a.v7 ?? ''} placeholder="v7 command" onChange={(e) => setAction(i, { ...a, v7: e.target.value || undefined })} />
+              <ModelSelect allowDefault value={a.model ?? ''} onChange={(model) => setAction(i, { ...a, model })} title="Model for this action (default = settings)" />
+              <EffortSelect value={a.effort ?? ''} onChange={(effort) => setAction(i, { ...a, effort })} title="Effort for this action" />
               <button className="bb-btn" onClick={() => patch({ actions: s.actions.filter((_, j) => j !== i) })} aria-label="Remove">✕</button>
             </div>
           ))}

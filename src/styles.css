@@ -69,7 +69,7 @@
 /* Board */
 .bb-board { min-width: max-content; }
 .bb-board-head, .bb-lane-grid { display: grid; gap: 8px; }
-.bb-colhead { font-weight: 600; padding: 4px 8px; color: var(--nim-text-muted); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+.bb-colhead { position: relative; display: flex; align-items: center; gap: 6px; font-weight: 600; padding: 4px 8px; color: var(--nim-text-muted); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
 .bb-lane { margin-bottom: 12px; }
 .bb-lane-head { border-radius: 6px; margin-bottom: 6px; }
 .bb-cell { min-height: 60px; padding: 6px; border-radius: 8px; background: var(--nim-bg-secondary); display: flex; flex-direction: column; gap: 6px; border: 2px solid transparent; }
@@ -126,3 +126,11 @@
 .bb-rule { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .bb-rule-col { width: 90px; flex: none; }
 .bb-toast { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1200; background: var(--nim-bg-tertiary); border: 1px solid var(--nim-border); border-radius: 8px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.3); max-width: 80%; }
+
+.bb-resizer { position: absolute; top: 0; right: -6px; width: 8px; height: 100%; cursor: col-resize; touch-action: none; }
+.bb-resizer::after { content: ''; position: absolute; left: 3px; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--nim-border); }
+.bb-resizer:hover::after { background: var(--nim-primary); }
+.bb-btn-xs { padding: 0 6px; font-size: 11px; line-height: 18px; text-transform: none; letter-spacing: 0; }
+.bb-hidden-done { background: none; border: 1px dashed var(--nim-border); border-radius: 6px; padding: 6px; color: var(--nim-text-muted); font: inherit; cursor: pointer; }
+.bb-hidden-done:hover { border-color: var(--nim-primary); color: var(--nim-text); }
+.bb-row { display: flex; gap: 12px; align-items: center; margin: 8px 0; }

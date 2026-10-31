@@ -4,6 +4,7 @@ import {
   COLUMNS_V6,
   COLUMNS_V7,
   COLUMN_LABEL,
+  resolveModel,
   type BoardModel,
   type BoardSettings,
   type ColumnId,
@@ -15,7 +16,7 @@ import {
 import { Backlog } from './Backlog';
 import { Board } from './Board';
 import { ContextMenu, type MenuItem } from './ContextMenu';
-import { ConfirmDialog, ModelSelect, SettingsDialog, type ConfirmSpec } from './Dialogs';
+import { ConfirmDialog, EffortSelect, ModelSelect, SettingsDialog, type ConfirmSpec } from './Dialogs';
 import { Details } from './Details';
 import { createClient, errorText } from './client';
 import { loadSettings, saveSettings } from './settings';
@@ -109,30 +110,32 @@ export function BoardPanel({ host }: PanelHostProps) {
   // ── derived data ──────────────────────────────────────────────────────────
   const version = model?.version ?? 'none';
   const columns = version === 'v7' ? COLUMNS_V7 : COLUMNS_V6;
+  const reverse = settings.sortOrder === 'reverse';
+  const sortedEpics = useMemo(() => (reverse ? [...(model?.epics ?? [])].reverse() : model?.epics ?? []), [model, reverse]);
+  const sortedStories = useMemo(() => (reverse ? [...(model?.stories ?? [])].reverse() : model?.stories ?? []), [model, reverse]);
   const epicById = useMemo(() => new Map((model?.epics ?? []).map((e) => [e.id, e])), [model]);
   // Done epics bury the live work; hide them unless asked for or picked in the epic filter.
   const shownEpics = useMemo(
-    () => (model?.epics ?? []).filter((e) => settings.showDoneEpics || epicFilter === e.id || e.status !== 'done'),
-    [model, settings.showDoneEpics, epicFilter],
+    () => sortedEpics.filter((e) => settings.showDoneEpics || epicFilter === e.id || e.status !== 'done'),
+    [sortedEpics, settings.showDoneEpics, epicFilter],
   );
   const visibleStories = useMemo(() => {
     const ok = new Set(shownEpics.map((e) => e.id));
-    return (model?.stories ?? []).filter(
+    return sortedStories.filter(
       (s) =>
         ok.has(s.epicId) &&
         (settings.showDropped || !s.dropped) &&
         (!epicFilter || s.epicId === epicFilter) &&
         (!columnFilter || s.column === columnFilter),
     );
-  }, [model, shownEpics, settings.showDropped, epicFilter, columnFilter]);
+  }, [sortedStories, shownEpics, settings.showDropped, epicFilter, columnFilter]);
   const selected = model?.stories.find((s) => s.id === selectedId) ?? null;
 
   // ── running things ────────────────────────────────────────────────────────
   const startSession = useCallback(
-    async (ownerKey: string, name: string, prompt: string) => {
-      const st = settingsRef.current;
+    async (ownerKey: string, name: string, prompt: string, chosen: { model: string; effort: string }) => {
       try {
-        await client.run({ ownerKey, name, prompt, model: st.model, ...(st.effort ? { effortLevel: st.effort } : {}) });
+        await client.run({ ownerKey, name, prompt, model: chosen.model, ...(chosen.effort ? { effortLevel: chosen.effort } : {}) });
         flash('Session started');
         void reload(true);
       } catch (e) {
@@ -172,19 +175,20 @@ export function BoardPanel({ host }: PanelHostProps) {
 
   /** Ask (unless told not to), then optionally write a status and start a session. */
   const launch = useCallback(
-    (opts: { title: string; story?: Story; epic?: Epic; ownerKey: string; sessionName: string; template: string; status?: string; rule?: ColumnRule }) => {
+    (opts: { title: string; story?: Story; epic?: Epic; ownerKey: string; sessionName: string; template: string; status?: string; rule?: ColumnRule; step?: { model?: string; effort?: string } }) => {
       const st = settingsRef.current;
       const command = opts.template ? expandTemplate(opts.template, ctxFor(opts.story, opts.epic)) : '';
       const preWrite = opts.status && (!command || (st.writeStatusBeforeRun && !opts.rule?.statusByCommand));
-      const go = async () => {
+      const initial = resolveModel(st, opts.step);
+      const go = async (chosen: { model: string; effort: string }) => {
         if (opts.status && opts.story && preWrite) {
           if (!(await writeStatus(opts.story, opts.status))) return;
         }
-        if (command) await startSession(opts.ownerKey, opts.sessionName, command);
+        if (command) await startSession(opts.ownerKey, opts.sessionName, command, chosen);
       };
       const mustAsk = Boolean(opts.rule?.forceConfirm) || (!st.dontAsk && Boolean(command));
       if (!mustAsk) {
-        void go();
+        void go(initial);
         return;
       }
       setConfirm({
@@ -194,9 +198,11 @@ export function BoardPanel({ host }: PanelHostProps) {
         allowDontAsk: !opts.rule?.forceConfirm,
         confirmLabel: command ? 'Run' : 'Move',
         statusOnly: command && opts.status && opts.story && preWrite ? () => void writeStatus(opts.story!, opts.status!) : undefined,
-        run: (dontAsk) => {
+        model: initial.model,
+        effort: initial.effort,
+        run: (dontAsk, model, effort) => {
           if (dontAsk && !settingsRef.current.dontAsk) changeSettings({ ...settingsRef.current, dontAsk: true });
-          void go();
+          void go({ model, effort });
         },
       });
     },
@@ -220,6 +226,7 @@ export function BoardPanel({ host }: PanelHostProps) {
         template: rule.command,
         status: rule.status,
         rule,
+        step: rule,
       });
     },
     [version, launch, flash, epicById],
@@ -237,6 +244,7 @@ export function BoardPanel({ host }: PanelHostProps) {
         ownerKey: story ? story.id : `epic:${epic?.id ?? 'board'}`,
         sessionName: `${action.label}: ${target}`.slice(0, 80),
         template,
+        step: action,
       });
     },
     [version, launch, epicById],
@@ -322,7 +330,15 @@ export function BoardPanel({ host }: PanelHostProps) {
           <input type="checkbox" checked={settings.showDoneEpics} onChange={(e) => changeSettings({ ...settings, showDoneEpics: e.target.checked })} /> done epics
         </label>
         <span className="bb-spacer" />
-        <ModelSelect value={settings.model} onChange={(m) => changeSettings({ ...settings, model: m })} />
+        <select className="bb-select" value={settings.sortOrder} onChange={(e) => changeSettings({ ...settings, sortOrder: e.target.value as BoardSettings['sortOrder'] })} aria-label="Order" title="Order of epics and stories">
+          <option value="reverse">↓ newest first</option>
+          <option value="file">↑ file order</option>
+        </select>
+        <label className="bb-check" title="Use the model and effort from this header for every session, instead of the per-step ones from settings">
+          <input type="checkbox" checked={settings.overrideEnabled} onChange={(e) => changeSettings({ ...settings, overrideEnabled: e.target.checked })} /> override
+        </label>
+        <ModelSelect value={settings.overrideModel} onChange={(m) => changeSettings({ ...settings, overrideModel: m })} title="Header model (used when “override” is ticked)" />
+        <EffortSelect value={settings.overrideEffort} onChange={(m) => changeSettings({ ...settings, overrideEffort: m })} title="Header effort (used when “override” is ticked)" />
         <span className="bb-chip" title="Detected BMAD version">{version === 'none' ? 'no BMAD' : version}</span>
         <button className="bb-btn" onClick={() => void reload(true)} title="Reload from files">↻</button>
         <button className="bb-btn" onClick={() => setSettingsOpen(true)} title="Settings">⚙</button>
@@ -366,6 +382,10 @@ export function BoardPanel({ host }: PanelHostProps) {
               collapsed={collapsed}
               onToggle={toggleEpic}
               onSelect={setSelectedId}
+              showDone={settings.doneShown}
+              onToggleDone={() => changeSettings({ ...settings, doneShown: !settings.doneShown })}
+              widths={settings.colWidths}
+              onResize={(col, w) => changeSettings({ ...settingsRef.current, colWidths: { ...settingsRef.current.colWidths, ...(w === null ? { [col]: undefined } : { [col]: w }) } })}
               onMove={moveStory}
               onStoryMenu={storyMenu}
               onEpicMenu={epicMenu}

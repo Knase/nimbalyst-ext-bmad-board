@@ -1,23 +1,29 @@
-import { jsx as e, jsxs as c, Fragment as U } from "react/jsx-runtime";
-import { useState as w, useRef as K, useEffect as $, useMemo as j, useCallback as I } from "react";
-const De = "bmad-board", R = {
+import { jsx as e, jsxs as o, Fragment as Q } from "react/jsx-runtime";
+import { useState as k, useRef as K, useEffect as A, useMemo as j, useCallback as B } from "react";
+const Ae = "bmad-board", O = {
   backlog: "Backlog",
   ready: "Ready",
   "in-progress": "In progress",
   review: "Review",
   built: "Built",
   done: "Done"
-}, ue = ["backlog", "ready", "in-progress", "review", "done"], me = ["backlog", "ready", "in-progress", "review", "built", "done"], Ee = {
+}, ye = ["backlog", "ready", "in-progress", "review", "done"], Ce = ["backlog", "ready", "in-progress", "review", "built", "done"], Be = {
   load: "panel_load",
   detail: "panel_detail",
   setStatus: "panel_set_status",
   run: "panel_run"
-}, $e = (n) => `${De}.${Ee[n]}`, T = {
+}, Le = (n) => `${Ae}.${Be[n]}`, F = {
   model: "claude-code:sonnet",
   effort: "",
   dontAsk: !1,
   writeStatusBeforeRun: !0,
   pollMs: 2500,
+  sortOrder: "reverse",
+  doneShown: !1,
+  colWidths: {},
+  overrideEnabled: !1,
+  overrideModel: "claude-code:sonnet",
+  overrideEffort: "",
   showDropped: !1,
   showDoneEpics: !1,
   rulesV6: {
@@ -47,712 +53,791 @@ const De = "bmad-board", R = {
   migratePrompt: "Run `bmad migrate method` to migrate this project from the BMAD v6 method module to v7, then summarise what changed and what is left to do by hand.",
   planPrompt: "/bmad-help"
 };
-function be(n) {
-  const o = n ?? {};
+function ke(n) {
+  const l = n ?? {};
   return {
-    ...T,
-    ...o,
-    rulesV6: { ...T.rulesV6, ...o.rulesV6 ?? {} },
-    rulesV7: { ...T.rulesV7, ...o.rulesV7 ?? {} },
-    actions: Array.isArray(o.actions) && o.actions.length > 0 ? o.actions : T.actions
+    ...F,
+    ...l,
+    rulesV6: { ...F.rulesV6, ...l.rulesV6 ?? {} },
+    rulesV7: { ...F.rulesV7, ...l.rulesV7 ?? {} },
+    colWidths: { ...l.colWidths ?? {} },
+    actions: Array.isArray(l.actions) && l.actions.length > 0 ? l.actions : F.actions
   };
 }
-function he({ story: n }) {
-  return /* @__PURE__ */ c("span", { className: `bb-chip bb-col-${n.column}`, title: n.status || "no status", children: [
-    R[n.column],
+function Oe(n, l) {
+  return n.overrideEnabled ? { model: n.overrideModel || n.model, effort: n.overrideEffort } : { model: l?.model || n.model, effort: l?.effort || n.effort };
+}
+function Se({ story: n }) {
+  return /* @__PURE__ */ o("span", { className: `bb-chip bb-col-${n.column}`, title: n.status || "no status", children: [
+    O[n.column],
     n.blocked ? " ⛔" : "",
     n.dropped ? " (dropped)" : ""
   ] });
 }
-function pe({ sessions: n }) {
+function Me({ sessions: n }) {
   if (!n.length) return null;
-  const o = n.some((v) => v.status === "waiting_for_input" || v.hasPendingPrompt), s = n.some((v) => v.status === "running"), d = o ? "bb-dot bb-dot-wait" : s ? "bb-dot bb-dot-run" : "bb-dot", a = o ? "agent waits for you" : s ? "agent running" : `${n.length} session(s)`;
-  return /* @__PURE__ */ e("span", { className: d, title: a, "aria-label": a });
+  const l = n.some((g) => g.status === "waiting_for_input" || g.hasPendingPrompt), a = n.some((g) => g.status === "running"), c = l ? "bb-dot bb-dot-wait" : a ? "bb-dot bb-dot-run" : "bb-dot", s = l ? "agent waits for you" : a ? "agent running" : `${n.length} session(s)`;
+  return /* @__PURE__ */ e("span", { className: c, title: s, "aria-label": s });
 }
-function Ie(n) {
-  const o = /* @__PURE__ */ new Map();
-  for (const d of n.stories) {
-    const a = o.get(d.epicId) ?? [];
-    a.push(d), o.set(d.epicId, a);
+function Pe(n) {
+  const l = /* @__PURE__ */ new Map();
+  for (const c of n.stories) {
+    const s = l.get(c.epicId) ?? [];
+    s.push(c), l.set(c.epicId, s);
   }
-  const s = n.epics.filter((d) => o.has(d.id) || d.total === 0 && d.status !== "done");
-  return s.length ? /* @__PURE__ */ e("div", { className: "bb-backlog", children: s.map((d) => {
-    const a = o.get(d.id) ?? [], v = !n.collapsed.has(d.id), f = d.total ? Math.round(d.done / d.total * 100) : 0;
-    return /* @__PURE__ */ c("section", { className: "bb-epic", children: [
-      /* @__PURE__ */ c(
+  const a = n.epics.filter((c) => l.has(c.id) || c.total === 0 && c.status !== "done");
+  return a.length ? /* @__PURE__ */ e("div", { className: "bb-backlog", children: a.map((c) => {
+    const s = l.get(c.id) ?? [], g = !n.collapsed.has(c.id), h = c.total ? Math.round(c.done / c.total * 100) : 0;
+    return /* @__PURE__ */ o("section", { className: "bb-epic", children: [
+      /* @__PURE__ */ o(
         "header",
         {
           className: "bb-epic-head",
-          onClick: () => n.onToggle(d.id),
-          onContextMenu: (b) => n.onEpicMenu(b, d),
+          onClick: () => n.onToggle(c.id),
+          onContextMenu: (m) => n.onEpicMenu(m, c),
           children: [
-            /* @__PURE__ */ e("span", { className: "bb-caret", children: v ? "▾" : "▸" }),
-            /* @__PURE__ */ c("span", { className: "bb-epic-title", children: [
-              /* @__PURE__ */ e("span", { className: "bb-epic-num", children: d.num.toUpperCase() }),
+            /* @__PURE__ */ e("span", { className: "bb-caret", children: g ? "▾" : "▸" }),
+            /* @__PURE__ */ o("span", { className: "bb-epic-title", children: [
+              /* @__PURE__ */ e("span", { className: "bb-epic-num", children: c.num.toUpperCase() }),
               " ",
-              d.title
+              c.title
             ] }),
-            d.refined === !1 && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-warn", title: "epic file says refined: false", children: "unrefined" }),
-            d.after.length > 0 && /* @__PURE__ */ c("span", { className: "bb-muted", title: "Epic depends on", children: [
+            c.refined === !1 && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-warn", title: "epic file says refined: false", children: "unrefined" }),
+            c.after.length > 0 && /* @__PURE__ */ o("span", { className: "bb-muted", title: "Epic depends on", children: [
               "after ",
-              d.after.join(", ")
+              c.after.join(", ")
             ] }),
-            /* @__PURE__ */ e("span", { className: `bb-chip bb-epic-status${d.statusDerived ? " bb-derived" : ""}`, title: d.statusDerived ? "derived from stories" : "recorded", children: d.status || "—" }),
-            /* @__PURE__ */ e("span", { className: "bb-progress", title: `${d.done}/${d.total} done`, children: /* @__PURE__ */ e("span", { className: "bb-progress-bar", style: { width: `${f}%` } }) }),
-            /* @__PURE__ */ c("span", { className: "bb-count", children: [
-              d.done,
+            /* @__PURE__ */ e("span", { className: `bb-chip bb-epic-status${c.statusDerived ? " bb-derived" : ""}`, title: c.statusDerived ? "derived from stories" : "recorded", children: c.status || "—" }),
+            /* @__PURE__ */ e("span", { className: "bb-progress", title: `${c.done}/${c.total} done`, children: /* @__PURE__ */ e("span", { className: "bb-progress-bar", style: { width: `${h}%` } }) }),
+            /* @__PURE__ */ o("span", { className: "bb-count", children: [
+              c.done,
               "/",
-              d.total
+              c.total
             ] })
           ]
         }
       ),
-      v && /* @__PURE__ */ e("ul", { className: "bb-stories", children: a.map((b) => /* @__PURE__ */ c(
+      g && /* @__PURE__ */ e("ul", { className: "bb-stories", children: s.map((m) => /* @__PURE__ */ o(
         "li",
         {
-          className: `bb-story${n.selectedId === b.id ? " bb-selected" : ""}${b.dropped ? " bb-dropped" : ""}`,
-          onClick: () => n.onSelect(b.id),
-          onContextMenu: (C) => n.onStoryMenu(C, b),
+          className: `bb-story${n.selectedId === m.id ? " bb-selected" : ""}${m.dropped ? " bb-dropped" : ""}`,
+          onClick: () => n.onSelect(m.id),
+          onContextMenu: (y) => n.onStoryMenu(y, m),
           children: [
-            /* @__PURE__ */ e("span", { className: "bb-ref", children: b.ref }),
-            b.type && b.type !== "story" && /* @__PURE__ */ e("span", { className: "bb-chip", children: b.type }),
-            /* @__PURE__ */ e("span", { className: "bb-story-title", children: b.title }),
-            b.after.length > 0 && /* @__PURE__ */ c("span", { className: "bb-muted", title: "Depends on", children: [
+            /* @__PURE__ */ e("span", { className: "bb-ref", children: m.ref }),
+            m.type && m.type !== "story" && /* @__PURE__ */ e("span", { className: "bb-chip", children: m.type }),
+            /* @__PURE__ */ e("span", { className: "bb-story-title", children: m.title }),
+            m.after.length > 0 && /* @__PURE__ */ o("span", { className: "bb-muted", title: "Depends on", children: [
               "⤴ ",
-              b.after.join(", ")
+              m.after.join(", ")
             ] }),
-            !b.movable && /* @__PURE__ */ e("span", { className: "bb-muted", title: b.lockedReason, children: "🔒" }),
-            /* @__PURE__ */ e(pe, { sessions: n.sessions.filter((C) => C.storyId === b.id) }),
-            /* @__PURE__ */ e(he, { story: b })
+            !m.movable && /* @__PURE__ */ e("span", { className: "bb-muted", title: m.lockedReason, children: "🔒" }),
+            /* @__PURE__ */ e(Me, { sessions: n.sessions.filter((y) => y.storyId === m.id) }),
+            /* @__PURE__ */ e(Se, { story: m })
           ]
         },
-        b.id
+        m.id
       )) })
-    ] }, d.id);
+    ] }, c.id);
   }) }) : /* @__PURE__ */ e("div", { className: "bb-empty", children: "Nothing matches the filters." });
 }
-function Re(n) {
-  const [o, s] = w(null), [d, a] = w(null), v = new Map(n.stories.map((p) => [p.id, p])), f = n.epics.filter((p) => n.stories.some((S) => S.epicId === p.id));
-  if (!f.length) return /* @__PURE__ */ e("div", { className: "bb-empty", children: "Nothing matches the filters." });
-  const b = `repeat(${n.columns.length}, minmax(190px, 1fr))`, C = (p, S) => `${p}|${S}`;
-  return /* @__PURE__ */ c("div", { className: "bb-board", children: [
-    /* @__PURE__ */ e("div", { className: "bb-board-head", style: { gridTemplateColumns: b }, children: n.columns.map((p) => /* @__PURE__ */ c("div", { className: "bb-colhead", children: [
-      R[p],
+function Ve(n) {
+  const [l, a] = k(null), [c, s] = k(null), [g, h] = k({}), m = K(null), y = new Map(n.stories.map((d) => [d.id, d])), S = n.epics.filter((d) => n.stories.some((b) => b.epicId === d.id));
+  if (!S.length) return /* @__PURE__ */ e("div", { className: "bb-empty", children: "Nothing matches the filters." });
+  const D = (d) => g[d] ?? n.widths[d], p = n.columns.map((d) => D(d) ? `${D(d)}px` : "minmax(190px, 1fr)").join(" "), r = (d, b) => {
+    d.preventDefault(), d.stopPropagation();
+    const w = d.currentTarget.parentElement, L = d.clientX, $ = w.getBoundingClientRect().width;
+    let I = $;
+    const u = (V) => {
+      I = Math.round(Math.min(640, Math.max(120, $ + V.clientX - L))), h((W) => ({ ...W, [b]: I }));
+    }, M = () => {
+      window.removeEventListener("pointermove", u), window.removeEventListener("pointerup", M), h((V) => {
+        const { [b]: W, ...Z } = V;
+        return Z;
+      }), I !== $ && n.onResize(b, I);
+    };
+    window.addEventListener("pointermove", u), window.addEventListener("pointerup", M);
+  }, f = (d, b) => `${d}|${b}`;
+  return /* @__PURE__ */ o("div", { className: "bb-board", children: [
+    /* @__PURE__ */ e("div", { className: "bb-board-head", ref: m, style: { gridTemplateColumns: p }, children: n.columns.map((d) => /* @__PURE__ */ o("div", { className: "bb-colhead", children: [
+      O[d],
       " ",
-      /* @__PURE__ */ e("span", { className: "bb-count", children: n.stories.filter((S) => S.column === p).length })
-    ] }, p)) }),
-    f.map((p) => {
-      const S = !n.collapsed.has(p.id);
-      return /* @__PURE__ */ c("section", { className: "bb-lane", children: [
-        /* @__PURE__ */ c("header", { className: "bb-lane-head", onClick: () => n.onToggle(p.id), onContextMenu: (u) => n.onEpicMenu(u, p), children: [
-          /* @__PURE__ */ e("span", { className: "bb-caret", children: S ? "▾" : "▸" }),
-          /* @__PURE__ */ e("span", { className: "bb-epic-num", children: p.num.toUpperCase() }),
+      /* @__PURE__ */ e("span", { className: "bb-count", children: n.stories.filter((b) => b.column === d).length }),
+      d === "done" && /* @__PURE__ */ e("button", { className: "bb-btn bb-btn-xs", onClick: n.onToggleDone, title: n.showDone ? "Hide done stories" : "Show done stories", children: n.showDone ? "Hide" : "Show" }),
+      /* @__PURE__ */ e(
+        "span",
+        {
+          className: "bb-resizer",
+          role: "separator",
+          "aria-label": `Resize ${O[d]} column`,
+          title: "Drag to resize, double-click to reset",
+          onPointerDown: (b) => r(b, d),
+          onDoubleClick: () => n.onResize(d, null)
+        }
+      )
+    ] }, d)) }),
+    S.map((d) => {
+      const b = !n.collapsed.has(d.id);
+      return /* @__PURE__ */ o("section", { className: "bb-lane", children: [
+        /* @__PURE__ */ o("header", { className: "bb-lane-head", onClick: () => n.onToggle(d.id), onContextMenu: (w) => n.onEpicMenu(w, d), children: [
+          /* @__PURE__ */ e("span", { className: "bb-caret", children: b ? "▾" : "▸" }),
+          /* @__PURE__ */ e("span", { className: "bb-epic-num", children: d.num.toUpperCase() }),
           " ",
-          p.title,
-          /* @__PURE__ */ c("span", { className: "bb-count", children: [
-            p.done,
+          d.title,
+          /* @__PURE__ */ o("span", { className: "bb-count", children: [
+            d.done,
             "/",
-            p.total
+            d.total
           ] })
         ] }),
-        S && /* @__PURE__ */ e("div", { className: "bb-lane-grid", style: { gridTemplateColumns: b }, children: n.columns.map((u) => {
-          const i = C(p.id, u), m = o !== null && o.epicId === p.id && o.from !== u, y = n.stories.filter((l) => l.epicId === p.id && l.column === u);
-          return /* @__PURE__ */ e(
+        b && /* @__PURE__ */ e("div", { className: "bb-lane-grid", style: { gridTemplateColumns: p }, children: n.columns.map((w) => {
+          const L = f(d.id, w), $ = l !== null && l.epicId === d.id && l.from !== w, I = n.stories.filter((u) => u.epicId === d.id && u.column === w);
+          return /* @__PURE__ */ o(
             "div",
             {
-              className: `bb-cell${m ? " bb-droppable" : ""}${d === i && m ? " bb-over" : ""}`,
-              onDragOver: (l) => {
-                m && (l.preventDefault(), l.dataTransfer.dropEffect = "move", d !== i && a(i));
+              className: `bb-cell${$ ? " bb-droppable" : ""}${c === L && $ ? " bb-over" : ""}`,
+              onDragOver: (u) => {
+                $ && (u.preventDefault(), u.dataTransfer.dropEffect = "move", c !== L && s(L));
               },
-              onDragLeave: () => a((l) => l === i ? null : l),
-              onDrop: (l) => {
-                l.preventDefault();
-                const N = o ? v.get(o.id) : void 0;
-                a(null), s(null), N && m && n.onMove(N, u);
+              onDragLeave: () => s((u) => u === L ? null : u),
+              onDrop: (u) => {
+                u.preventDefault();
+                const M = l ? y.get(l.id) : void 0;
+                s(null), a(null), M && $ && n.onMove(M, w);
               },
-              children: y.map((l) => /* @__PURE__ */ c(
-                "article",
-                {
-                  className: `bb-card${n.selectedId === l.id ? " bb-selected" : ""}${l.dropped ? " bb-dropped" : ""}${l.movable ? "" : " bb-locked"}`,
-                  draggable: l.movable,
-                  title: l.movable ? void 0 : l.lockedReason,
-                  onDragStart: (N) => {
-                    N.dataTransfer.setData("text/plain", l.id), N.dataTransfer.effectAllowed = "move", s({ id: l.id, epicId: l.epicId, from: l.column });
-                  },
-                  onDragEnd: () => {
-                    s(null), a(null);
-                  },
-                  onClick: () => n.onSelect(l.id),
-                  onContextMenu: (N) => n.onStoryMenu(N, l),
-                  children: [
-                    /* @__PURE__ */ c("div", { className: "bb-card-top", children: [
-                      /* @__PURE__ */ e("span", { className: "bb-ref", children: l.ref }),
-                      l.type && l.type !== "story" && /* @__PURE__ */ e("span", { className: "bb-chip", children: l.type }),
-                      l.risk && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-warn", children: l.risk }),
-                      /* @__PURE__ */ e("span", { className: "bb-spacer" }),
-                      /* @__PURE__ */ e(pe, { sessions: n.sessions.filter((N) => N.storyId === l.id) })
-                    ] }),
-                    /* @__PURE__ */ e("div", { className: "bb-card-title", children: l.title }),
-                    (l.blocked || l.after.length > 0 || l.dropped) && /* @__PURE__ */ c("div", { className: "bb-card-foot", children: [
-                      l.blocked && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-err", title: l.blockedReason, children: "blocked" }),
-                      l.dropped && /* @__PURE__ */ e("span", { className: "bb-chip", children: "dropped" }),
-                      l.after.length > 0 && /* @__PURE__ */ c("span", { className: "bb-muted", title: "Depends on", children: [
-                        "⤴ ",
-                        l.after.join(", ")
+              children: [
+                w === "done" && !n.showDone && I.length > 0 && /* @__PURE__ */ o("button", { className: "bb-hidden-done", onClick: n.onToggleDone, title: "Show done stories", children: [
+                  I.length,
+                  " done · show"
+                ] }),
+                (w !== "done" || n.showDone) && I.map((u) => /* @__PURE__ */ o(
+                  "article",
+                  {
+                    className: `bb-card${n.selectedId === u.id ? " bb-selected" : ""}${u.dropped ? " bb-dropped" : ""}${u.movable ? "" : " bb-locked"}`,
+                    draggable: u.movable,
+                    title: u.movable ? void 0 : u.lockedReason,
+                    onDragStart: (M) => {
+                      M.dataTransfer.setData("text/plain", u.id), M.dataTransfer.effectAllowed = "move", a({ id: u.id, epicId: u.epicId, from: u.column });
+                    },
+                    onDragEnd: () => {
+                      a(null), s(null);
+                    },
+                    onClick: () => n.onSelect(u.id),
+                    onContextMenu: (M) => n.onStoryMenu(M, u),
+                    children: [
+                      /* @__PURE__ */ o("div", { className: "bb-card-top", children: [
+                        /* @__PURE__ */ e("span", { className: "bb-ref", children: u.ref }),
+                        u.type && u.type !== "story" && /* @__PURE__ */ e("span", { className: "bb-chip", children: u.type }),
+                        u.risk && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-warn", children: u.risk }),
+                        /* @__PURE__ */ e("span", { className: "bb-spacer" }),
+                        /* @__PURE__ */ e(Me, { sessions: n.sessions.filter((M) => M.storyId === u.id) })
+                      ] }),
+                      /* @__PURE__ */ e("div", { className: "bb-card-title", children: u.title }),
+                      (u.blocked || u.after.length > 0 || u.dropped) && /* @__PURE__ */ o("div", { className: "bb-card-foot", children: [
+                        u.blocked && /* @__PURE__ */ e("span", { className: "bb-chip bb-chip-err", title: u.blockedReason, children: "blocked" }),
+                        u.dropped && /* @__PURE__ */ e("span", { className: "bb-chip", children: "dropped" }),
+                        u.after.length > 0 && /* @__PURE__ */ o("span", { className: "bb-muted", title: "Depends on", children: [
+                          "⤴ ",
+                          u.after.join(", ")
+                        ] })
                       ] })
-                    ] })
-                  ]
-                },
-                l.id
-              ))
+                    ]
+                  },
+                  u.id
+                ))
+              ]
             },
-            u
+            w
           );
         }) })
-      ] }, p.id);
+      ] }, d.id);
     })
   ] });
 }
-function Ae({ x: n, y: o, title: s, items: d, onClose: a }) {
-  const v = K(null), [f, b] = w(null), [C, p] = w({ x: n, y: o });
-  $(() => {
-    const u = (m) => {
-      v.current?.contains(m.target) || a();
-    }, i = (m) => m.key === "Escape" && a();
-    return document.addEventListener("mousedown", u, !0), document.addEventListener("keydown", i), () => {
-      document.removeEventListener("mousedown", u, !0), document.removeEventListener("keydown", i);
+function _e({ x: n, y: l, title: a, items: c, onClose: s }) {
+  const g = K(null), [h, m] = k(null), [y, S] = k({ x: n, y: l });
+  A(() => {
+    const p = (f) => {
+      g.current?.contains(f.target) || s();
+    }, r = (f) => f.key === "Escape" && s();
+    return document.addEventListener("mousedown", p, !0), document.addEventListener("keydown", r), () => {
+      document.removeEventListener("mousedown", p, !0), document.removeEventListener("keydown", r);
     };
-  }, [a]), $(() => {
-    const u = v.current?.getBoundingClientRect();
-    u && p({
-      x: Math.max(4, Math.min(n, window.innerWidth - u.width - 4)),
-      y: Math.max(4, Math.min(o, window.innerHeight - u.height - 4))
+  }, [s]), A(() => {
+    const p = g.current?.getBoundingClientRect();
+    p && S({
+      x: Math.max(4, Math.min(n, window.innerWidth - p.width - 4)),
+      y: Math.max(4, Math.min(l, window.innerHeight - p.height - 4))
     });
-  }, [n, o, f]);
-  const S = (u) => {
-    u.disabled || (a(), u.onSelect?.());
+  }, [n, l, h]);
+  const D = (p) => {
+    p.disabled || (s(), p.onSelect?.());
   };
-  return /* @__PURE__ */ c("div", { ref: v, className: "bb-menu", style: { left: C.x, top: C.y }, role: "menu", children: [
-    s && /* @__PURE__ */ e("div", { className: "bb-menu-title", children: s }),
-    d.map(
-      (u, i) => u.separator ? /* @__PURE__ */ e("div", { className: "bb-menu-sep" }, i) : /* @__PURE__ */ c("div", { children: [
-        /* @__PURE__ */ c(
+  return /* @__PURE__ */ o("div", { ref: g, className: "bb-menu", style: { left: y.x, top: y.y }, role: "menu", children: [
+    a && /* @__PURE__ */ e("div", { className: "bb-menu-title", children: a }),
+    c.map(
+      (p, r) => p.separator ? /* @__PURE__ */ e("div", { className: "bb-menu-sep" }, r) : /* @__PURE__ */ o("div", { children: [
+        /* @__PURE__ */ o(
           "button",
           {
             role: "menuitem",
             className: "bb-menu-item",
-            disabled: u.disabled,
-            onClick: () => u.children ? b(f === i ? null : i) : S(u),
+            disabled: p.disabled,
+            onClick: () => p.children ? m(h === r ? null : r) : D(p),
             children: [
-              u.label,
-              u.children && /* @__PURE__ */ e("span", { className: "bb-spacer", children: f === i ? "▾" : "▸" })
+              p.label,
+              p.children && /* @__PURE__ */ e("span", { className: "bb-spacer", children: h === r ? "▾" : "▸" })
             ]
           }
         ),
-        u.children && f === i && /* @__PURE__ */ e("div", { className: "bb-menu-sub", children: u.children.map((m, y) => /* @__PURE__ */ e("button", { role: "menuitem", className: "bb-menu-item", disabled: m.disabled, onClick: () => S(m), children: m.label }, y)) })
-      ] }, i)
+        p.children && h === r && /* @__PURE__ */ e("div", { className: "bb-menu-sub", children: p.children.map((f, d) => /* @__PURE__ */ e("button", { role: "menuitem", className: "bb-menu-item", disabled: f.disabled, onClick: () => D(f), children: f.label }, d)) })
+      ] }, r)
     )
   ] });
 }
-function Be({ spec: n, onClose: o }) {
-  const [s, d] = w(!1);
-  return $(() => {
-    const a = (v) => {
-      v.key === "Escape" && o(), v.key === "Enter" && !(v.target instanceof HTMLTextAreaElement) && (o(), n.run(s));
+function je({ spec: n, onClose: l }) {
+  const [a, c] = k(!1), [s, g] = k(n.model ?? ""), [h, m] = k(n.effort ?? "");
+  return A(() => {
+    const y = (S) => {
+      S.key === "Escape" && l(), S.key === "Enter" && !(S.target instanceof HTMLTextAreaElement) && !(S.target instanceof HTMLSelectElement) && (l(), n.run(a, s, h));
     };
-    return document.addEventListener("keydown", a), () => document.removeEventListener("keydown", a);
-  }, [n, s, o]), /* @__PURE__ */ e("div", { className: "bb-modal-backdrop", onMouseDown: o, children: /* @__PURE__ */ c("div", { className: "bb-modal", role: "dialog", "aria-label": n.title, onMouseDown: (a) => a.stopPropagation(), children: [
+    return document.addEventListener("keydown", y), () => document.removeEventListener("keydown", y);
+  }, [n, a, s, h, l]), /* @__PURE__ */ e("div", { className: "bb-modal-backdrop", onMouseDown: l, children: /* @__PURE__ */ o("div", { className: "bb-modal", role: "dialog", "aria-label": n.title, onMouseDown: (y) => y.stopPropagation(), children: [
     /* @__PURE__ */ e("h2", { children: n.title }),
-    n.status && /* @__PURE__ */ c("p", { children: [
+    n.status && /* @__PURE__ */ o("p", { children: [
       "Status → ",
       /* @__PURE__ */ e("code", { children: n.status })
     ] }),
-    n.command && /* @__PURE__ */ c(U, { children: [
+    n.command && /* @__PURE__ */ o(Q, { children: [
       /* @__PURE__ */ e("p", { children: "Starts a new agent session with:" }),
-      /* @__PURE__ */ e("pre", { className: "bb-cmd", children: n.command })
+      /* @__PURE__ */ e("pre", { className: "bb-cmd", children: n.command }),
+      /* @__PURE__ */ o("div", { className: "bb-row", children: [
+        /* @__PURE__ */ o("label", { children: [
+          "Model ",
+          /* @__PURE__ */ e(X, { value: s, onChange: g })
+        ] }),
+        /* @__PURE__ */ o("label", { children: [
+          "Effort ",
+          /* @__PURE__ */ e(G, { value: h, onChange: m })
+        ] })
+      ] })
     ] }),
-    n.allowDontAsk && n.command && /* @__PURE__ */ c("label", { className: "bb-check", children: [
-      /* @__PURE__ */ e("input", { type: "checkbox", checked: s, onChange: (a) => d(a.target.checked) }),
+    n.allowDontAsk && n.command && /* @__PURE__ */ o("label", { className: "bb-check", children: [
+      /* @__PURE__ */ e("input", { type: "checkbox", checked: a, onChange: (y) => c(y.target.checked) }),
       " Don't ask again (can be undone in settings)"
     ] }),
-    /* @__PURE__ */ c("div", { className: "bb-modal-actions", children: [
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: o, children: "Cancel" }),
+    /* @__PURE__ */ o("div", { className: "bb-modal-actions", children: [
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: l, children: "Cancel" }),
       n.statusOnly && /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => {
-        o(), n.statusOnly?.();
+        l(), n.statusOnly?.();
       }, children: "Only change status" }),
       /* @__PURE__ */ e("button", { className: "bb-btn bb-btn-primary", onClick: () => {
-        o(), n.run(s);
+        l(), n.run(a, s, h);
       }, children: n.confirmLabel })
     ] })
   ] }) });
 }
-const z = ["claude-code:sonnet", "claude-code:opus", "claude-code:haiku"], Te = ["", "low", "medium", "high", "xhigh", "max"];
-function ve({ value: n, onChange: o, className: s }) {
-  const d = z.includes(n) ? z : [n, ...z];
-  return /* @__PURE__ */ e("select", { className: s ?? "bb-select", value: n, onChange: (a) => o(a.target.value), title: "Model for sessions started from the board", children: d.map((a) => /* @__PURE__ */ e("option", { value: a, children: a }, a)) });
+const oe = ["claude-code:sonnet", "claude-code:opus", "claude-code:haiku"], Fe = ["", "low", "medium", "high", "xhigh", "max"];
+function X({ value: n, onChange: l, className: a, allowDefault: c, title: s }) {
+  const g = !n || oe.includes(n) ? oe : [n, ...oe];
+  return /* @__PURE__ */ o("select", { className: a ?? "bb-select", value: n, onChange: (h) => l(h.target.value), title: s ?? "Model for sessions started from the board", children: [
+    c && /* @__PURE__ */ e("option", { value: "", children: "default" }),
+    g.map((h) => /* @__PURE__ */ e("option", { value: h, children: h }, h))
+  ] });
 }
-function xe({ col: n, rule: o, onChange: s }) {
-  return /* @__PURE__ */ c("div", { className: "bb-rule", children: [
-    /* @__PURE__ */ e("span", { className: "bb-rule-col", children: R[n] }),
-    /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", value: o.status, placeholder: "status to write", onChange: (d) => s({ ...o, status: d.target.value }) }),
-    /* @__PURE__ */ e("input", { className: "bb-input", value: o.command, placeholder: "command (empty = status only)", onChange: (d) => s({ ...o, command: d.target.value }) }),
-    /* @__PURE__ */ c("label", { className: "bb-check", title: "Always ask, even with 'don't ask'", children: [
-      /* @__PURE__ */ e("input", { type: "checkbox", checked: !!o.forceConfirm, onChange: (d) => s({ ...o, forceConfirm: d.target.checked }) }),
+function G({ value: n, onChange: l, className: a, title: c }) {
+  return /* @__PURE__ */ e("select", { className: a ?? "bb-select", value: n, onChange: (s) => l(s.target.value), title: c ?? "Effort for sessions started from the board", children: Fe.map((s) => /* @__PURE__ */ e("option", { value: s, children: s || "default" }, s)) });
+}
+function We({ col: n, rule: l, onChange: a }) {
+  return /* @__PURE__ */ o("div", { className: "bb-rule", children: [
+    /* @__PURE__ */ e("span", { className: "bb-rule-col", children: O[n] }),
+    /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", value: l.status, placeholder: "status to write", onChange: (c) => a({ ...l, status: c.target.value }) }),
+    /* @__PURE__ */ e("input", { className: "bb-input", value: l.command, placeholder: "command (empty = status only)", onChange: (c) => a({ ...l, command: c.target.value }) }),
+    /* @__PURE__ */ e(X, { allowDefault: !0, value: l.model ?? "", onChange: (c) => a({ ...l, model: c }), title: "Model for this step (default = settings)" }),
+    /* @__PURE__ */ e(G, { value: l.effort ?? "", onChange: (c) => a({ ...l, effort: c }), title: "Effort for this step" }),
+    /* @__PURE__ */ o("label", { className: "bb-check", title: "Always ask, even with 'don't ask'", children: [
+      /* @__PURE__ */ e("input", { type: "checkbox", checked: !!l.forceConfirm, onChange: (c) => a({ ...l, forceConfirm: c.target.checked }) }),
       " ask"
     ] })
   ] });
 }
-function Pe({ settings: n, version: o, onSave: s, onClose: d }) {
-  const [a, v] = w(n), f = (i) => v((m) => ({ ...m, ...i })), b = o === "v7", C = b ? me : ue, p = b ? a.rulesV7 : a.rulesV6, S = (i, m) => f(b ? { rulesV7: { ...a.rulesV7, [i]: m } } : { rulesV6: { ...a.rulesV6, [i]: m } }), u = (i, m) => f({ actions: a.actions.map((y, l) => l === i ? m : y) });
-  return /* @__PURE__ */ e("div", { className: "bb-modal-backdrop", onMouseDown: d, children: /* @__PURE__ */ c("div", { className: "bb-modal bb-modal-wide", role: "dialog", "aria-label": "BMAD Board settings", onMouseDown: (i) => i.stopPropagation(), children: [
+function Ue({ settings: n, version: l, onSave: a, onClose: c }) {
+  const [s, g] = k(n), h = (r) => g((f) => ({ ...f, ...r })), m = l === "v7", y = m ? Ce : ye, S = m ? s.rulesV7 : s.rulesV6, D = (r, f) => h(m ? { rulesV7: { ...s.rulesV7, [r]: f } } : { rulesV6: { ...s.rulesV6, [r]: f } }), p = (r, f) => h({ actions: s.actions.map((d, b) => b === r ? f : d) });
+  return /* @__PURE__ */ e("div", { className: "bb-modal-backdrop", onMouseDown: c, children: /* @__PURE__ */ o("div", { className: "bb-modal bb-modal-wide", role: "dialog", "aria-label": "BMAD Board settings", onMouseDown: (r) => r.stopPropagation(), children: [
     /* @__PURE__ */ e("h2", { children: "Settings" }),
-    /* @__PURE__ */ c("div", { className: "bb-settings-scroll", children: [
+    /* @__PURE__ */ o("div", { className: "bb-settings-scroll", children: [
       /* @__PURE__ */ e("h3", { children: "Sessions" }),
-      /* @__PURE__ */ c("div", { className: "bb-form", children: [
-        /* @__PURE__ */ c("label", { children: [
-          "Model ",
-          /* @__PURE__ */ e(ve, { value: a.model, onChange: (i) => f({ model: i }) })
+      /* @__PURE__ */ o("div", { className: "bb-form", children: [
+        /* @__PURE__ */ o("label", { children: [
+          "Default model ",
+          /* @__PURE__ */ e(X, { value: s.model, onChange: (r) => h({ model: r }), title: "Used by steps that have no model of their own" })
         ] }),
-        /* @__PURE__ */ c("label", { children: [
-          "Effort",
-          /* @__PURE__ */ e("select", { className: "bb-select", value: a.effort, onChange: (i) => f({ effort: i.target.value }), children: Te.map((i) => /* @__PURE__ */ e("option", { value: i, children: i || "default" }, i)) })
+        /* @__PURE__ */ o("label", { children: [
+          "Default effort ",
+          /* @__PURE__ */ e(G, { value: s.effort, onChange: (r) => h({ effort: r }) })
         ] }),
-        /* @__PURE__ */ c("label", { className: "bb-check", children: [
-          /* @__PURE__ */ e("input", { type: "checkbox", checked: a.dontAsk, onChange: (i) => f({ dontAsk: i.target.checked }) }),
+        /* @__PURE__ */ o("label", { children: [
+          "Order",
+          /* @__PURE__ */ o("select", { className: "bb-select", value: s.sortOrder, onChange: (r) => h({ sortOrder: r.target.value }), children: [
+            /* @__PURE__ */ e("option", { value: "reverse", children: "newest first (reverse file order)" }),
+            /* @__PURE__ */ e("option", { value: "file", children: "file order" })
+          ] })
+        ] }),
+        /* @__PURE__ */ o("label", { className: "bb-check", children: [
+          /* @__PURE__ */ e("input", { type: "checkbox", checked: s.dontAsk, onChange: (r) => h({ dontAsk: r.target.checked }) }),
           " Don't ask before starting a command"
         ] }),
-        /* @__PURE__ */ c("label", { className: "bb-check", children: [
-          /* @__PURE__ */ e("input", { type: "checkbox", checked: a.writeStatusBeforeRun, onChange: (i) => f({ writeStatusBeforeRun: i.target.checked }) }),
+        /* @__PURE__ */ o("label", { className: "bb-check", children: [
+          /* @__PURE__ */ e("input", { type: "checkbox", checked: s.writeStatusBeforeRun, onChange: (r) => h({ writeStatusBeforeRun: r.target.checked }) }),
           " Write the status before launching the command"
         ] }),
-        /* @__PURE__ */ c("label", { className: "bb-check", children: [
-          /* @__PURE__ */ e("input", { type: "checkbox", checked: a.showDropped, onChange: (i) => f({ showDropped: i.target.checked }) }),
+        /* @__PURE__ */ o("label", { className: "bb-check", children: [
+          /* @__PURE__ */ e("input", { type: "checkbox", checked: s.showDropped, onChange: (r) => h({ showDropped: r.target.checked }) }),
           " Show dropped stories (v7)"
         ] }),
-        /* @__PURE__ */ c("label", { children: [
+        /* @__PURE__ */ o("label", { children: [
           "Poll every (ms)",
-          /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", type: "number", min: 1e3, step: 500, value: a.pollMs, onChange: (i) => f({ pollMs: Math.max(1e3, Number(i.target.value) || T.pollMs) }) })
+          /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", type: "number", min: 1e3, step: 500, value: s.pollMs, onChange: (r) => h({ pollMs: Math.max(1e3, Number(r.target.value) || F.pollMs) }) })
         ] })
       ] }),
-      /* @__PURE__ */ c("h3", { children: [
+      /* @__PURE__ */ o("h3", { children: [
         "Drop on a column (",
-        o === "none" ? "v6" : o,
+        l === "none" ? "v6" : l,
         ")"
       ] }),
-      /* @__PURE__ */ c("p", { className: "bb-muted", children: [
+      /* @__PURE__ */ o("p", { className: "bb-muted", children: [
         "Placeholders: ",
-        "{key} {ref} {epic} {file} {title}"
+        "{key} {ref} {epic} {file} {title}",
+        ". Model / effort per step; “default” falls back to the defaults above (or to the header, when its override box is ticked)."
       ] }),
-      C.map((i) => /* @__PURE__ */ e(xe, { col: i, rule: p[i] ?? { status: "", command: "" }, onChange: (m) => S(i, m) }, i)),
+      y.map((r) => /* @__PURE__ */ e(We, { col: r, rule: S[r] ?? { status: "", command: "" }, onChange: (f) => D(r, f) }, r)),
       /* @__PURE__ */ e("h3", { children: "Right-click menu" }),
-      a.actions.map((i, m) => /* @__PURE__ */ c("div", { className: "bb-rule", children: [
-        /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", value: i.label, onChange: (y) => u(m, { ...i, label: y.target.value }) }),
-        /* @__PURE__ */ c("select", { className: "bb-select", value: i.scope, onChange: (y) => u(m, { ...i, scope: y.target.value }), children: [
+      s.actions.map((r, f) => /* @__PURE__ */ o("div", { className: "bb-rule", children: [
+        /* @__PURE__ */ e("input", { className: "bb-input bb-input-sm", value: r.label, onChange: (d) => p(f, { ...r, label: d.target.value }) }),
+        /* @__PURE__ */ o("select", { className: "bb-select", value: r.scope, onChange: (d) => p(f, { ...r, scope: d.target.value }), children: [
           /* @__PURE__ */ e("option", { value: "story", children: "story" }),
           /* @__PURE__ */ e("option", { value: "epic", children: "epic" })
         ] }),
-        /* @__PURE__ */ e("input", { className: "bb-input", value: i.v6 ?? "", placeholder: "v6 command", onChange: (y) => u(m, { ...i, v6: y.target.value || void 0 }) }),
-        /* @__PURE__ */ e("input", { className: "bb-input", value: i.v7 ?? "", placeholder: "v7 command", onChange: (y) => u(m, { ...i, v7: y.target.value || void 0 }) }),
-        /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => f({ actions: a.actions.filter((y, l) => l !== m) }), "aria-label": "Remove", children: "✕" })
-      ] }, i.id + m)),
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => f({ actions: [...a.actions, { id: `custom-${Date.now()}`, label: "New action", scope: "story", v6: "", v7: "" }] }), children: "+ Add action" }),
+        /* @__PURE__ */ e("input", { className: "bb-input", value: r.v6 ?? "", placeholder: "v6 command", onChange: (d) => p(f, { ...r, v6: d.target.value || void 0 }) }),
+        /* @__PURE__ */ e("input", { className: "bb-input", value: r.v7 ?? "", placeholder: "v7 command", onChange: (d) => p(f, { ...r, v7: d.target.value || void 0 }) }),
+        /* @__PURE__ */ e(X, { allowDefault: !0, value: r.model ?? "", onChange: (d) => p(f, { ...r, model: d }), title: "Model for this action (default = settings)" }),
+        /* @__PURE__ */ e(G, { value: r.effort ?? "", onChange: (d) => p(f, { ...r, effort: d }), title: "Effort for this action" }),
+        /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => h({ actions: s.actions.filter((d, b) => b !== f) }), "aria-label": "Remove", children: "✕" })
+      ] }, r.id + f)),
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => h({ actions: [...s.actions, { id: `custom-${Date.now()}`, label: "New action", scope: "story", v6: "", v7: "" }] }), children: "+ Add action" }),
       /* @__PURE__ */ e("h3", { children: "Banner prompts" }),
-      /* @__PURE__ */ c("div", { className: "bb-form", children: [
-        /* @__PURE__ */ c("label", { children: [
+      /* @__PURE__ */ o("div", { className: "bb-form", children: [
+        /* @__PURE__ */ o("label", { children: [
           "Migrate (v6 → v7) ",
-          /* @__PURE__ */ e("textarea", { className: "bb-input", rows: 2, value: a.migratePrompt, onChange: (i) => f({ migratePrompt: i.target.value }) })
+          /* @__PURE__ */ e("textarea", { className: "bb-input", rows: 2, value: s.migratePrompt, onChange: (r) => h({ migratePrompt: r.target.value }) })
         ] }),
-        /* @__PURE__ */ c("label", { children: [
+        /* @__PURE__ */ o("label", { children: [
           "Start planning ",
-          /* @__PURE__ */ e("input", { className: "bb-input", value: a.planPrompt, onChange: (i) => f({ planPrompt: i.target.value }) })
+          /* @__PURE__ */ e("input", { className: "bb-input", value: s.planPrompt, onChange: (r) => h({ planPrompt: r.target.value }) })
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ c("div", { className: "bb-modal-actions", children: [
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => v({ ...T }), children: "Reset to defaults" }),
+    /* @__PURE__ */ o("div", { className: "bb-modal-actions", children: [
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => g({ ...F }), children: "Reset to defaults" }),
       /* @__PURE__ */ e("span", { className: "bb-spacer" }),
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: d, children: "Cancel" }),
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: c, children: "Cancel" }),
       /* @__PURE__ */ e("button", { className: "bb-btn bb-btn-primary", onClick: () => {
-        s(a), d();
+        a(s), c();
       }, children: "Save" })
     ] })
   ] }) });
 }
-function Le(n) {
-  const o = (s, d) => n.callBackendTool($e(s), d);
+function ze(n) {
+  const l = (a, c) => n.callBackendTool(Le(a), c);
   return {
-    load: (s) => o("load", s),
-    detail: (s) => o("detail", s),
-    setStatus: (s) => o("setStatus", s),
-    run: (s) => o("run", s)
+    load: (a) => l("load", a),
+    detail: (a) => l("detail", a),
+    setStatus: (a) => l("setStatus", a),
+    run: (a) => l("run", a)
   };
 }
-const O = (n) => n instanceof Error ? n.message : String(n);
-function Ve({ host: n, client: o, story: s, epic: d, sessions: a, initiative: v, rev: f }) {
-  const [b, C] = w(null), [p, S] = w(null), [u, i] = w(null), m = s?.id ?? null;
-  if ($(() => {
-    if (!m) {
-      C(null);
+const H = (n) => n instanceof Error ? n.message : String(n);
+function He({ host: n, client: l, story: a, epic: c, sessions: s, initiative: g, rev: h }) {
+  const [m, y] = k(null), [S, D] = k(null), [p, r] = k(null), f = a?.id ?? null;
+  if (A(() => {
+    if (!f) {
+      y(null);
       return;
     }
-    let l = !0;
-    return o.detail({ storyId: m, initiative: v }).then((N) => {
-      l && (C(N), S(null));
-    }).catch((N) => l && S(O(N))), () => {
-      l = !1;
+    let b = !0;
+    return l.detail({ storyId: f, initiative: g }).then((w) => {
+      b && (y(w), D(null));
+    }).catch((w) => b && D(H(w))), () => {
+      b = !1;
     };
-  }, [o, m, v, f]), $(() => i(null), [m]), !s) return /* @__PURE__ */ e("div", { className: "bb-details bb-empty", children: "Select a story." });
-  const y = n.components?.SessionTranscript;
-  return /* @__PURE__ */ c("div", { className: "bb-details", children: [
-    /* @__PURE__ */ c("h2", { className: "bb-d-title", children: [
-      /* @__PURE__ */ e("span", { className: "bb-ref", children: s.ref }),
+  }, [l, f, g, h]), A(() => r(null), [f]), !a) return /* @__PURE__ */ e("div", { className: "bb-details bb-empty", children: "Select a story." });
+  const d = n.components?.SessionTranscript;
+  return /* @__PURE__ */ o("div", { className: "bb-details", children: [
+    /* @__PURE__ */ o("h2", { className: "bb-d-title", children: [
+      /* @__PURE__ */ e("span", { className: "bb-ref", children: a.ref }),
       " ",
-      s.title
+      a.title
     ] }),
-    /* @__PURE__ */ c("div", { className: "bb-d-meta", children: [
-      /* @__PURE__ */ e(he, { story: s }),
-      d && /* @__PURE__ */ c("span", { className: "bb-muted", children: [
-        d.num,
+    /* @__PURE__ */ o("div", { className: "bb-d-meta", children: [
+      /* @__PURE__ */ e(Se, { story: a }),
+      c && /* @__PURE__ */ o("span", { className: "bb-muted", children: [
+        c.num,
         " · ",
-        d.title
+        c.title
       ] }),
-      s.after.length > 0 && /* @__PURE__ */ c("span", { className: "bb-muted", children: [
+      a.after.length > 0 && /* @__PURE__ */ o("span", { className: "bb-muted", children: [
         "after ",
-        s.after.join(", ")
+        a.after.join(", ")
       ] })
     ] }),
-    s.blocked && s.blockedReason && /* @__PURE__ */ c("div", { className: "bb-note bb-note-err", children: [
+    a.blocked && a.blockedReason && /* @__PURE__ */ o("div", { className: "bb-note bb-note-err", children: [
       "Blocked: ",
-      s.blockedReason
+      a.blockedReason
     ] }),
-    !s.movable && s.lockedReason && /* @__PURE__ */ e("div", { className: "bb-note", children: s.lockedReason }),
-    p && /* @__PURE__ */ e("div", { className: "bb-note bb-note-err", children: p }),
-    b && /* @__PURE__ */ c(U, { children: [
-      /* @__PURE__ */ e("div", { className: "bb-d-files", children: b.files.map((l) => /* @__PURE__ */ c("button", { className: "bb-link", onClick: () => n.openFile(l.path), children: [
+    !a.movable && a.lockedReason && /* @__PURE__ */ e("div", { className: "bb-note", children: a.lockedReason }),
+    S && /* @__PURE__ */ e("div", { className: "bb-note bb-note-err", children: S }),
+    m && /* @__PURE__ */ o(Q, { children: [
+      /* @__PURE__ */ e("div", { className: "bb-d-files", children: m.files.map((b) => /* @__PURE__ */ o("button", { className: "bb-link", onClick: () => n.openFile(b.path), children: [
         "Open ",
-        l.label.toLowerCase()
-      ] }, l.path)) }),
-      b.summary && /* @__PURE__ */ e("p", { className: "bb-d-summary", children: b.summary }),
-      b.acceptance.length > 0 && /* @__PURE__ */ c(U, { children: [
+        b.label.toLowerCase()
+      ] }, b.path)) }),
+      m.summary && /* @__PURE__ */ e("p", { className: "bb-d-summary", children: m.summary }),
+      m.acceptance.length > 0 && /* @__PURE__ */ o(Q, { children: [
         /* @__PURE__ */ e("h3", { children: "Acceptance criteria" }),
-        /* @__PURE__ */ e("ol", { className: "bb-d-list", children: b.acceptance.map((l, N) => /* @__PURE__ */ e("li", { children: l }, N)) })
+        /* @__PURE__ */ e("ol", { className: "bb-d-list", children: m.acceptance.map((b, w) => /* @__PURE__ */ e("li", { children: b }, w)) })
       ] }),
-      b.tasks.length > 0 && /* @__PURE__ */ c(U, { children: [
-        /* @__PURE__ */ c("h3", { children: [
+      m.tasks.length > 0 && /* @__PURE__ */ o(Q, { children: [
+        /* @__PURE__ */ o("h3", { children: [
           "Tasks ",
-          /* @__PURE__ */ c("span", { className: "bb-count", children: [
-            b.tasks.filter((l) => l.checked).length,
+          /* @__PURE__ */ o("span", { className: "bb-count", children: [
+            m.tasks.filter((b) => b.checked).length,
             "/",
-            b.tasks.length
+            m.tasks.length
           ] })
         ] }),
-        /* @__PURE__ */ e("ul", { className: "bb-d-tasks", children: b.tasks.map((l, N) => /* @__PURE__ */ c("li", { style: { paddingLeft: l.depth * 16 }, className: l.checked ? "bb-done" : "", children: [
-          /* @__PURE__ */ e("span", { "aria-hidden": !0, children: l.checked ? "☑" : "☐" }),
+        /* @__PURE__ */ e("ul", { className: "bb-d-tasks", children: m.tasks.map((b, w) => /* @__PURE__ */ o("li", { style: { paddingLeft: b.depth * 16 }, className: b.checked ? "bb-done" : "", children: [
+          /* @__PURE__ */ e("span", { "aria-hidden": !0, children: b.checked ? "☑" : "☐" }),
           " ",
-          l.text
-        ] }, N)) })
+          b.text
+        ] }, w)) })
       ] }),
-      b.sections.map((l, N) => /* @__PURE__ */ c("details", { className: "bb-d-section", children: [
-        /* @__PURE__ */ e("summary", { children: l.title }),
-        /* @__PURE__ */ e("pre", { children: l.body })
-      ] }, N))
+      m.sections.map((b, w) => /* @__PURE__ */ o("details", { className: "bb-d-section", children: [
+        /* @__PURE__ */ e("summary", { children: b.title }),
+        /* @__PURE__ */ e("pre", { children: b.body })
+      ] }, w))
     ] }),
-    /* @__PURE__ */ c("h3", { children: [
+    /* @__PURE__ */ o("h3", { children: [
       "Sessions ",
-      a.length > 0 && /* @__PURE__ */ e("span", { className: "bb-count", children: a.length })
+      s.length > 0 && /* @__PURE__ */ e("span", { className: "bb-count", children: s.length })
     ] }),
-    a.length === 0 ? /* @__PURE__ */ e("div", { className: "bb-muted", children: "None launched from the board for this story." }) : /* @__PURE__ */ e("ul", { className: "bb-d-sessions", children: a.map((l) => /* @__PURE__ */ c("li", { className: u === l.sessionId ? "bb-selected" : "", onClick: () => i(u === l.sessionId ? null : l.sessionId), children: [
-      /* @__PURE__ */ e("span", { className: `bb-dot bb-dot-${l.status === "running" ? "run" : l.status === "waiting_for_input" || l.hasPendingPrompt ? "wait" : "idle"}` }),
-      /* @__PURE__ */ e("span", { className: "bb-session-title", children: l.title || l.sessionId.slice(0, 8) }),
-      /* @__PURE__ */ e("span", { className: "bb-muted", children: l.hasPendingPrompt ? "needs answer" : l.status })
-    ] }, l.sessionId)) }),
-    u && y && /* @__PURE__ */ e("div", { className: "bb-transcript", children: /* @__PURE__ */ e(y, { sessionId: u }) })
+    s.length === 0 ? /* @__PURE__ */ e("div", { className: "bb-muted", children: "None launched from the board for this story." }) : /* @__PURE__ */ e("ul", { className: "bb-d-sessions", children: s.map((b) => /* @__PURE__ */ o("li", { className: p === b.sessionId ? "bb-selected" : "", onClick: () => r(p === b.sessionId ? null : b.sessionId), children: [
+      /* @__PURE__ */ e("span", { className: `bb-dot bb-dot-${b.status === "running" ? "run" : b.status === "waiting_for_input" || b.hasPendingPrompt ? "wait" : "idle"}` }),
+      /* @__PURE__ */ e("span", { className: "bb-session-title", children: b.title || b.sessionId.slice(0, 8) }),
+      /* @__PURE__ */ e("span", { className: "bb-muted", children: b.hasPendingPrompt ? "needs answer" : b.status })
+    ] }, b.sessionId)) }),
+    p && d && /* @__PURE__ */ e("div", { className: "bb-transcript", children: /* @__PURE__ */ e(d, { sessionId: p }) })
   ] });
 }
-const fe = "settings.v1";
-function Oe(n) {
+const De = "settings.v1";
+function Ke(n) {
   try {
-    return be(n.storage.getGlobal(fe));
+    return ke(n.storage.getGlobal(De));
   } catch {
-    return be(void 0);
+    return ke(void 0);
   }
 }
-async function _e(n, o) {
-  await n.storage.setGlobal(fe, o);
+async function Xe(n, l) {
+  await n.storage.setGlobal(De, l);
 }
-function Fe(n, o) {
-  const s = (v) => v.replace(/\\/g, "/"), d = s(n).replace(/\/+$/, ""), a = s(o);
-  return a.startsWith(d + "/") ? a.slice(d.length + 1) : a;
+function Ge(n, l) {
+  const a = (g) => g.replace(/\\/g, "/"), c = a(n).replace(/\/+$/, ""), s = a(l);
+  return s.startsWith(c + "/") ? s.slice(c.length + 1) : s;
 }
-function je(n, o) {
-  const { story: s, epic: d } = o, a = s ? o.version === "v6" ? s.id : s.ref : "", v = {
-    key: a,
-    ref: s?.ref ?? "",
-    epic: d?.num ?? "",
-    file: s ? s.file ? Fe(o.projectRoot, s.file) : a : "",
-    title: s?.title ?? ""
+function Ye(n, l) {
+  const { story: a, epic: c } = l, s = a ? l.version === "v6" ? a.id : a.ref : "", g = {
+    key: s,
+    ref: a?.ref ?? "",
+    epic: c?.num ?? "",
+    file: a ? a.file ? Ge(l.projectRoot, a.file) : s : "",
+    title: a?.title ?? ""
   };
-  return n.replace(/\{(key|ref|epic|file|title)\}/g, (f, b) => v[b] ?? "");
+  return n.replace(/\{(key|ref|epic|file|title)\}/g, (h, m) => g[m] ?? "");
 }
-const Ue = (n) => {
+const qe = (n) => {
   try {
     return n.storage.get("view") === "board" ? "board" : "backlog";
   } catch {
     return "backlog";
   }
 };
-function Ke({ host: n }) {
-  const o = j(() => Le(n), [n]), [s, d] = w(() => Oe(n)), [a, v] = w(null), [f, b] = w(null), [C, p] = w(() => Ue(n)), [S, u] = w(null), [i, m] = w(""), [y, l] = w(""), [N, ge] = w(void 0), [J, Ne] = w(/* @__PURE__ */ new Set()), [x, W] = w(null), [Q, Z] = w(null), [ke, ee] = w(!1), [te, ne] = w(null), [G, we] = w(!1), Y = K(""), A = K(s);
-  A.current = s;
-  const q = K(N);
-  q.current = N;
-  const D = I((t) => {
-    ne(t), window.setTimeout(() => ne((r) => r === t ? null : r), 4e3);
-  }, []), E = I(async (t = !1) => {
+function Je({ host: n }) {
+  const l = j(() => ze(n), [n]), [a, c] = k(() => Ke(n)), [s, g] = k(null), [h, m] = k(null), [y, S] = k(() => qe(n)), [D, p] = k(null), [r, f] = k(""), [d, b] = k(""), [w, L] = k(void 0), [$, I] = k(/* @__PURE__ */ new Set()), [u, M] = k(null), [V, W] = k(null), [Z, ie] = k(!1), [re, ce] = k(null), [ee, Ee] = k(!1), te = K(""), P = K(a);
+  P.current = a;
+  const ne = K(w);
+  ne.current = w;
+  const R = B((t) => {
+    ce(t), window.setTimeout(() => ce((i) => i === t ? null : i), 4e3);
+  }, []), T = B(async (t = !1) => {
     try {
-      const r = await o.load({ initiative: q.current, since: t ? void 0 : Y.current || void 0 });
-      if (b(null), r.unchanged) return;
-      Y.current = r.model.rev, v(r.model);
-    } catch (r) {
-      b(O(r));
+      const i = await l.load({ initiative: ne.current, since: t ? void 0 : te.current || void 0 });
+      if (m(null), i.unchanged) return;
+      te.current = i.model.rev, g(i.model);
+    } catch (i) {
+      m(H(i));
     }
-  }, [o]);
-  $(() => {
-    E(!0);
-  }, [E, N]), $(() => {
+  }, [l]);
+  A(() => {
+    T(!0);
+  }, [T, w]), A(() => {
     const t = window.setInterval(() => {
-      document.hidden || E();
-    }, s.pollMs), r = () => !document.hidden && void E();
-    return document.addEventListener("visibilitychange", r), () => {
-      window.clearInterval(t), document.removeEventListener("visibilitychange", r);
+      document.hidden || T();
+    }, a.pollMs), i = () => !document.hidden && void T();
+    return document.addEventListener("visibilitychange", i), () => {
+      window.clearInterval(t), document.removeEventListener("visibilitychange", i);
     };
-  }, [E, s.pollMs]), $(() => {
-    n.setPanes?.({ right: { label: "Details", collapsed: G } });
-  }, [n, G]), $(() => n.onPaneToggle?.((t) => t === "right" && we((r) => !r)), [n]), $(() => () => n.setPanes?.(null), [n]);
-  const ye = (t) => {
-    p(t), n.storage.set("view", t).catch(() => {
+  }, [T, a.pollMs]), A(() => {
+    n.setPanes?.({ right: { label: "Details", collapsed: ee } });
+  }, [n, ee]), A(() => n.onPaneToggle?.((t) => t === "right" && Ee((i) => !i)), [n]), A(() => () => n.setPanes?.(null), [n]);
+  const $e = (t) => {
+    S(t), n.storage.set("view", t).catch(() => {
     });
-  }, M = a?.version ?? "none", H = M === "v7" ? me : ue, B = j(() => new Map((a?.epics ?? []).map((t) => [t.id, t])), [a]), _ = j(
-    () => (a?.epics ?? []).filter((t) => s.showDoneEpics || i === t.id || t.status !== "done"),
-    [a, s.showDoneEpics, i]
-  ), ae = j(() => {
-    const t = new Set(_.map((r) => r.id));
-    return (a?.stories ?? []).filter(
-      (r) => t.has(r.epicId) && (s.showDropped || !r.dropped) && (!i || r.epicId === i) && (!y || r.column === y)
+  }, E = s?.version ?? "none", ae = E === "v7" ? Ce : ye, Y = a.sortOrder === "reverse", de = j(() => Y ? [...s?.epics ?? []].reverse() : s?.epics ?? [], [s, Y]), be = j(() => Y ? [...s?.stories ?? []].reverse() : s?.stories ?? [], [s, Y]), _ = j(() => new Map((s?.epics ?? []).map((t) => [t.id, t])), [s]), q = j(
+    () => de.filter((t) => a.showDoneEpics || r === t.id || t.status !== "done"),
+    [de, a.showDoneEpics, r]
+  ), ue = j(() => {
+    const t = new Set(q.map((i) => i.id));
+    return be.filter(
+      (i) => t.has(i.epicId) && (a.showDropped || !i.dropped) && (!r || i.epicId === r) && (!d || i.column === d)
     );
-  }, [a, _, s.showDropped, i, y]), P = a?.stories.find((t) => t.id === S) ?? null, se = I(
-    async (t, r, h) => {
-      const k = A.current;
+  }, [be, q, a.showDropped, r, d]), U = s?.stories.find((t) => t.id === D) ?? null, me = B(
+    async (t, i, v, C) => {
       try {
-        await o.run({ ownerKey: t, name: r, prompt: h, model: k.model, ...k.effort ? { effortLevel: k.effort } : {} }), D("Session started"), E(!0);
-      } catch (g) {
-        D(O(g));
+        await l.run({ ownerKey: t, name: i, prompt: v, model: C.model, ...C.effort ? { effortLevel: C.effort } : {} }), R("Session started"), T(!0);
+      } catch (N) {
+        R(H(N));
       }
     },
-    [o, D, E]
-  ), X = I(
-    async (t, r) => {
+    [l, R, T]
+  ), se = B(
+    async (t, i) => {
       try {
-        const h = await o.setStatus({ storyId: t.id, status: r, initiative: q.current });
-        return h.epicBumped && D(`Epic moved to ${h.epicBumped}`), await E(!0), !0;
-      } catch (h) {
-        return D(O(h)), !1;
+        const v = await l.setStatus({ storyId: t.id, status: i, initiative: ne.current });
+        return v.epicBumped && R(`Epic moved to ${v.epicBumped}`), await T(!0), !0;
+      } catch (v) {
+        return R(H(v)), !1;
       }
     },
-    [o, D, E]
-  ), L = I(
+    [l, R, T]
+  ), x = B(
     (t) => {
-      d(t), _e(n, t).catch((r) => D(`Could not save settings: ${O(r)}`));
+      c(t), Xe(n, t).catch((i) => R(`Could not save settings: ${H(i)}`));
     },
-    [n, D]
-  ), le = I(
-    (t, r) => ({ version: M, projectRoot: a?.projectRoot ?? n.workspacePath, story: t, epic: r }),
-    [M, a?.projectRoot, n.workspacePath]
-  ), V = I(
+    [n, R]
+  ), he = B(
+    (t, i) => ({ version: E, projectRoot: s?.projectRoot ?? n.workspacePath, story: t, epic: i }),
+    [E, s?.projectRoot, n.workspacePath]
+  ), z = B(
     (t) => {
-      const r = A.current, h = t.template ? je(t.template, le(t.story, t.epic)) : "", k = t.status && (!h || r.writeStatusBeforeRun && !t.rule?.statusByCommand), g = async () => {
-        t.status && t.story && k && !await X(t.story, t.status) || h && await se(t.ownerKey, t.sessionName, h);
+      const i = P.current, v = t.template ? Ye(t.template, he(t.story, t.epic)) : "", C = t.status && (!v || i.writeStatusBeforeRun && !t.rule?.statusByCommand), N = Oe(i, t.step), we = async (le) => {
+        t.status && t.story && C && !await se(t.story, t.status) || v && await me(t.ownerKey, t.sessionName, v, le);
       };
-      if (!(!!t.rule?.forceConfirm || !r.dontAsk && !!h)) {
-        g();
+      if (!(!!t.rule?.forceConfirm || !i.dontAsk && !!v)) {
+        we(N);
         return;
       }
-      Z({
+      W({
         title: t.title,
-        status: t.status && k ? t.status : void 0,
-        command: h || void 0,
+        status: t.status && C ? t.status : void 0,
+        command: v || void 0,
         allowDontAsk: !t.rule?.forceConfirm,
-        confirmLabel: h ? "Run" : "Move",
-        statusOnly: h && t.status && t.story && k ? () => {
-          X(t.story, t.status);
+        confirmLabel: v ? "Run" : "Move",
+        statusOnly: v && t.status && t.story && C ? () => {
+          se(t.story, t.status);
         } : void 0,
-        run: (Me) => {
-          Me && !A.current.dontAsk && L({ ...A.current, dontAsk: !0 }), g();
+        model: N.model,
+        effort: N.effort,
+        run: (le, Te, xe) => {
+          le && !P.current.dontAsk && x({ ...P.current, dontAsk: !0 }), we({ model: Te, effort: xe });
         }
       });
     },
-    [le, X, se, L]
-  ), ie = I(
-    (t, r) => {
-      if (t.column === r) return;
-      if (!t.movable) return D(t.lockedReason ?? "This story cannot be moved.");
-      const h = A.current, g = (M === "v7" ? h.rulesV7 : h.rulesV6)[r];
-      if (!g || !g.status && !g.command) return D(`No rule for ${R[r]}. Set one in settings.`);
-      V({
-        title: `${t.ref} → ${R[r]}`,
+    [he, se, me, x]
+  ), pe = B(
+    (t, i) => {
+      if (t.column === i) return;
+      if (!t.movable) return R(t.lockedReason ?? "This story cannot be moved.");
+      const v = P.current, N = (E === "v7" ? v.rulesV7 : v.rulesV6)[i];
+      if (!N || !N.status && !N.command) return R(`No rule for ${O[i]}. Set one in settings.`);
+      z({
+        title: `${t.ref} → ${O[i]}`,
         story: t,
-        epic: B.get(t.epicId),
+        epic: _.get(t.epicId),
         ownerKey: t.id,
         sessionName: `${t.ref} ${t.title}`.slice(0, 80),
-        template: g.command,
-        status: g.status,
-        rule: g
+        template: N.command,
+        status: N.status,
+        rule: N,
+        step: N
       });
     },
-    [M, V, D, B]
-  ), oe = I(
-    (t, r, h) => {
-      const k = M === "v7" ? t.v7 : t.v6;
-      if (!k) return;
-      const g = r ? `${r.ref} ${r.title}` : `${h?.num ?? ""} ${h?.title ?? ""}`;
-      V({
-        title: `${t.label}: ${g}`.slice(0, 100),
-        story: r,
-        epic: h ?? (r ? B.get(r.epicId) : void 0),
-        ownerKey: r ? r.id : `epic:${h?.id ?? "board"}`,
-        sessionName: `${t.label}: ${g}`.slice(0, 80),
-        template: k
+    [E, z, R, _]
+  ), fe = B(
+    (t, i, v) => {
+      const C = E === "v7" ? t.v7 : t.v6;
+      if (!C) return;
+      const N = i ? `${i.ref} ${i.title}` : `${v?.num ?? ""} ${v?.title ?? ""}`;
+      z({
+        title: `${t.label}: ${N}`.slice(0, 100),
+        story: i,
+        epic: v ?? (i ? _.get(i.epicId) : void 0),
+        ownerKey: i ? i.id : `epic:${v?.id ?? "board"}`,
+        sessionName: `${t.label}: ${N}`.slice(0, 80),
+        template: C,
+        step: t
       });
     },
-    [M, V, B]
-  ), Se = (t, r) => {
-    const h = t === "migrate" ? s.migratePrompt : s.planPrompt;
-    V({ title: r, ownerKey: "board", sessionName: r, template: h });
-  }, ce = (t, r) => {
-    t.preventDefault(), u(r.id);
-    const h = B.get(r.epicId), k = s.actions.filter((g) => g.scope === "story" && (M === "v7" ? g.v7 : g.v6)).map((g) => ({ label: g.label, onSelect: () => oe(g, r, h) }));
-    k.push({ separator: !0, label: "" }), k.push({
+    [E, z, _]
+  ), Re = (t, i) => {
+    const v = t === "migrate" ? a.migratePrompt : a.planPrompt;
+    z({ title: i, ownerKey: "board", sessionName: i, template: v });
+  }, ve = (t, i) => {
+    t.preventDefault(), p(i.id);
+    const v = _.get(i.epicId), C = a.actions.filter((N) => N.scope === "story" && (E === "v7" ? N.v7 : N.v6)).map((N) => ({ label: N.label, onSelect: () => fe(N, i, v) }));
+    C.push({ separator: !0, label: "" }), C.push({
       label: "Move to",
-      disabled: !r.movable,
-      children: H.filter((g) => g !== r.column).map((g) => ({ label: R[g], onSelect: () => ie(r, g) }))
-    }), r.file && k.push({ label: "Open file", onSelect: () => n.openFile(r.file) }), W({ x: t.clientX, y: t.clientY, title: `${r.ref} ${r.title}`, items: k });
-  }, re = (t, r) => {
+      disabled: !i.movable,
+      children: ae.filter((N) => N !== i.column).map((N) => ({ label: O[N], onSelect: () => pe(i, N) }))
+    }), i.file && C.push({ label: "Open file", onSelect: () => n.openFile(i.file) }), M({ x: t.clientX, y: t.clientY, title: `${i.ref} ${i.title}`, items: C });
+  }, ge = (t, i) => {
     t.preventDefault();
-    const h = s.actions.filter((k) => k.scope === "epic" && (M === "v7" ? k.v7 : k.v6)).map((k) => ({ label: k.label, onSelect: () => oe(k, void 0, r) }));
-    r.file && h.push({ label: "Open epic file", onSelect: () => n.openFile(r.file) }), h.length && W({ x: t.clientX, y: t.clientY, title: `${r.num} ${r.title}`, items: h });
-  }, de = (t) => Ne((r) => {
-    const h = new Set(r);
-    return h.delete(t) || h.add(t), h;
-  }), Ce = P && a ? a.sessions.filter((t) => t.storyId === P.id) : [], F = a !== null && a.version === "none";
-  return /* @__PURE__ */ c("div", { className: "bb-root", children: [
-    /* @__PURE__ */ c("header", { className: "bb-header", children: [
-      /* @__PURE__ */ e("div", { className: "bb-tabs", role: "tablist", children: ["backlog", "board"].map((t) => /* @__PURE__ */ e("button", { role: "tab", "aria-selected": C === t, className: `bb-tab${C === t ? " bb-tab-on" : ""}`, onClick: () => ye(t), children: t === "backlog" ? "Backlog" : "Board" }, t)) }),
-      /* @__PURE__ */ c("select", { className: "bb-select", value: i, onChange: (t) => m(t.target.value), "aria-label": "Epic filter", children: [
+    const v = a.actions.filter((C) => C.scope === "epic" && (E === "v7" ? C.v7 : C.v6)).map((C) => ({ label: C.label, onSelect: () => fe(C, void 0, i) }));
+    i.file && v.push({ label: "Open epic file", onSelect: () => n.openFile(i.file) }), v.length && M({ x: t.clientX, y: t.clientY, title: `${i.num} ${i.title}`, items: v });
+  }, Ne = (t) => I((i) => {
+    const v = new Set(i);
+    return v.delete(t) || v.add(t), v;
+  }), Ie = U && s ? s.sessions.filter((t) => t.storyId === U.id) : [], J = s !== null && s.version === "none";
+  return /* @__PURE__ */ o("div", { className: "bb-root", children: [
+    /* @__PURE__ */ o("header", { className: "bb-header", children: [
+      /* @__PURE__ */ e("div", { className: "bb-tabs", role: "tablist", children: ["backlog", "board"].map((t) => /* @__PURE__ */ e("button", { role: "tab", "aria-selected": y === t, className: `bb-tab${y === t ? " bb-tab-on" : ""}`, onClick: () => $e(t), children: t === "backlog" ? "Backlog" : "Board" }, t)) }),
+      /* @__PURE__ */ o("select", { className: "bb-select", value: r, onChange: (t) => f(t.target.value), "aria-label": "Epic filter", children: [
         /* @__PURE__ */ e("option", { value: "", children: "All epics" }),
-        a?.epics.filter((t) => t.total > 0).map((t) => /* @__PURE__ */ c("option", { value: t.id, children: [
+        s?.epics.filter((t) => t.total > 0).map((t) => /* @__PURE__ */ o("option", { value: t.id, children: [
           t.num.toUpperCase(),
           " · ",
           t.title
         ] }, t.id))
       ] }),
-      /* @__PURE__ */ c("select", { className: "bb-select", value: y, onChange: (t) => l(t.target.value), "aria-label": "Status filter", children: [
+      /* @__PURE__ */ o("select", { className: "bb-select", value: d, onChange: (t) => b(t.target.value), "aria-label": "Status filter", children: [
         /* @__PURE__ */ e("option", { value: "", children: "All statuses" }),
-        H.map((t) => /* @__PURE__ */ e("option", { value: t, children: R[t] }, t))
+        ae.map((t) => /* @__PURE__ */ e("option", { value: t, children: O[t] }, t))
       ] }),
-      M === "v7" && a && a.initiatives.length > 0 && /* @__PURE__ */ e(
+      E === "v7" && s && s.initiatives.length > 0 && /* @__PURE__ */ e(
         "select",
         {
           className: "bb-select",
-          value: N ?? a.activeInitiative ?? "",
+          value: w ?? s.activeInitiative ?? "",
           onChange: (t) => {
-            Y.current = "", ge(t.target.value || void 0), u(null);
+            te.current = "", L(t.target.value || void 0), p(null);
           },
           "aria-label": "Initiative",
-          children: a.initiatives.map((t) => /* @__PURE__ */ e("option", { value: t, children: t }, t))
+          children: s.initiatives.map((t) => /* @__PURE__ */ e("option", { value: t, children: t }, t))
         }
       ),
-      /* @__PURE__ */ c("label", { className: "bb-check", title: "Show epics whose status is done", children: [
-        /* @__PURE__ */ e("input", { type: "checkbox", checked: s.showDoneEpics, onChange: (t) => L({ ...s, showDoneEpics: t.target.checked }) }),
+      /* @__PURE__ */ o("label", { className: "bb-check", title: "Show epics whose status is done", children: [
+        /* @__PURE__ */ e("input", { type: "checkbox", checked: a.showDoneEpics, onChange: (t) => x({ ...a, showDoneEpics: t.target.checked }) }),
         " done epics"
       ] }),
       /* @__PURE__ */ e("span", { className: "bb-spacer" }),
-      /* @__PURE__ */ e(ve, { value: s.model, onChange: (t) => L({ ...s, model: t }) }),
-      /* @__PURE__ */ e("span", { className: "bb-chip", title: "Detected BMAD version", children: M === "none" ? "no BMAD" : M }),
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => {
-        E(!0);
-      }, title: "Reload from files", children: "↻" }),
-      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => ee(!0), title: "Settings", children: "⚙" })
-    ] }),
-    a?.banners.map((t) => /* @__PURE__ */ c("div", { className: `bb-banner bb-banner-${t.kind}`, children: [
-      /* @__PURE__ */ e("span", { children: t.message }),
-      t.action && /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => Se(t.action.promptSetting, t.action.label), children: t.action.label })
-    ] }, t.id)),
-    f && /* @__PURE__ */ e("div", { className: "bb-banner bb-banner-error", children: f }),
-    /* @__PURE__ */ c("div", { className: "bb-body", children: [
-      /* @__PURE__ */ c("main", { className: "bb-main", children: [
-        !a && !f && /* @__PURE__ */ e("div", { className: "bb-empty", children: "Loading…" }),
-        a && !F && C === "backlog" && /* @__PURE__ */ e(
-          Ie,
-          {
-            epics: _.filter((t) => !i || t.id === i),
-            stories: ae,
-            sessions: a.sessions,
-            selectedId: S,
-            collapsed: J,
-            onToggle: de,
-            onSelect: u,
-            onStoryMenu: ce,
-            onEpicMenu: re
-          }
-        ),
-        a && !F && C === "board" && /* @__PURE__ */ e(
-          Re,
-          {
-            columns: H,
-            epics: _,
-            stories: ae,
-            sessions: a.sessions,
-            selectedId: S,
-            collapsed: J,
-            onToggle: de,
-            onSelect: u,
-            onMove: ie,
-            onStoryMenu: ce,
-            onEpicMenu: re
-          }
-        ),
-        F && /* @__PURE__ */ e("div", { className: "bb-empty", children: "Nothing to show yet. Use the banner above to start planning." })
+      /* @__PURE__ */ o("select", { className: "bb-select", value: a.sortOrder, onChange: (t) => x({ ...a, sortOrder: t.target.value }), "aria-label": "Order", title: "Order of epics and stories", children: [
+        /* @__PURE__ */ e("option", { value: "reverse", children: "↓ newest first" }),
+        /* @__PURE__ */ e("option", { value: "file", children: "↑ file order" })
       ] }),
-      !G && !F && /* @__PURE__ */ e("aside", { className: "bb-aside", children: /* @__PURE__ */ e(
-        Ve,
+      /* @__PURE__ */ o("label", { className: "bb-check", title: "Use the model and effort from this header for every session, instead of the per-step ones from settings", children: [
+        /* @__PURE__ */ e("input", { type: "checkbox", checked: a.overrideEnabled, onChange: (t) => x({ ...a, overrideEnabled: t.target.checked }) }),
+        " override"
+      ] }),
+      /* @__PURE__ */ e(X, { value: a.overrideModel, onChange: (t) => x({ ...a, overrideModel: t }), title: "Header model (used when “override” is ticked)" }),
+      /* @__PURE__ */ e(G, { value: a.overrideEffort, onChange: (t) => x({ ...a, overrideEffort: t }), title: "Header effort (used when “override” is ticked)" }),
+      /* @__PURE__ */ e("span", { className: "bb-chip", title: "Detected BMAD version", children: E === "none" ? "no BMAD" : E }),
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => {
+        T(!0);
+      }, title: "Reload from files", children: "↻" }),
+      /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => ie(!0), title: "Settings", children: "⚙" })
+    ] }),
+    s?.banners.map((t) => /* @__PURE__ */ o("div", { className: `bb-banner bb-banner-${t.kind}`, children: [
+      /* @__PURE__ */ e("span", { children: t.message }),
+      t.action && /* @__PURE__ */ e("button", { className: "bb-btn", onClick: () => Re(t.action.promptSetting, t.action.label), children: t.action.label })
+    ] }, t.id)),
+    h && /* @__PURE__ */ e("div", { className: "bb-banner bb-banner-error", children: h }),
+    /* @__PURE__ */ o("div", { className: "bb-body", children: [
+      /* @__PURE__ */ o("main", { className: "bb-main", children: [
+        !s && !h && /* @__PURE__ */ e("div", { className: "bb-empty", children: "Loading…" }),
+        s && !J && y === "backlog" && /* @__PURE__ */ e(
+          Pe,
+          {
+            epics: q.filter((t) => !r || t.id === r),
+            stories: ue,
+            sessions: s.sessions,
+            selectedId: D,
+            collapsed: $,
+            onToggle: Ne,
+            onSelect: p,
+            onStoryMenu: ve,
+            onEpicMenu: ge
+          }
+        ),
+        s && !J && y === "board" && /* @__PURE__ */ e(
+          Ve,
+          {
+            columns: ae,
+            epics: q,
+            stories: ue,
+            sessions: s.sessions,
+            selectedId: D,
+            collapsed: $,
+            onToggle: Ne,
+            onSelect: p,
+            showDone: a.doneShown,
+            onToggleDone: () => x({ ...a, doneShown: !a.doneShown }),
+            widths: a.colWidths,
+            onResize: (t, i) => x({ ...P.current, colWidths: { ...P.current.colWidths, ...i === null ? { [t]: void 0 } : { [t]: i } } }),
+            onMove: pe,
+            onStoryMenu: ve,
+            onEpicMenu: ge
+          }
+        ),
+        J && /* @__PURE__ */ e("div", { className: "bb-empty", children: "Nothing to show yet. Use the banner above to start planning." })
+      ] }),
+      !ee && !J && /* @__PURE__ */ e("aside", { className: "bb-aside", children: /* @__PURE__ */ e(
+        He,
         {
           host: n,
-          client: o,
-          story: P,
-          epic: P ? B.get(P.epicId) ?? null : null,
-          sessions: Ce,
-          initiative: N,
-          rev: a?.rev ?? ""
+          client: l,
+          story: U,
+          epic: U ? _.get(U.epicId) ?? null : null,
+          sessions: Ie,
+          initiative: w,
+          rev: s?.rev ?? ""
         }
       ) })
     ] }),
-    te && /* @__PURE__ */ e("div", { className: "bb-toast", role: "status", children: te }),
-    x && /* @__PURE__ */ e(Ae, { x: x.x, y: x.y, title: x.title, items: x.items, onClose: () => W(null) }),
-    Q && /* @__PURE__ */ e(Be, { spec: Q, onClose: () => Z(null) }),
-    ke && /* @__PURE__ */ e(Pe, { settings: s, version: M, onSave: L, onClose: () => ee(!1) })
+    re && /* @__PURE__ */ e("div", { className: "bb-toast", role: "status", children: re }),
+    u && /* @__PURE__ */ e(_e, { x: u.x, y: u.y, title: u.title, items: u.items, onClose: () => M(null) }),
+    V && /* @__PURE__ */ e(je, { spec: V, onClose: () => W(null) }),
+    Z && /* @__PURE__ */ e(Ue, { settings: a, version: E, onSave: x, onClose: () => ie(!1) })
   ] });
 }
-const qe = {
-  board: { component: Ke }
+const tt = {
+  board: { component: Je }
 };
-async function He() {
+async function nt() {
 }
-async function Xe() {
+async function at() {
 }
 export {
-  Ke as BoardPanel,
-  He as activate,
-  Xe as deactivate,
-  qe as panels
+  Je as BoardPanel,
+  nt as activate,
+  at as deactivate,
+  tt as panels
 };
 //# sourceMappingURL=index.js.map

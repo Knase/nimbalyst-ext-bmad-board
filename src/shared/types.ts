@@ -195,6 +195,10 @@ export interface ColumnRule {
   forceConfirm?: boolean;
   /** The command writes the status itself; do not pre-write `status` before launching it. */
   statusByCommand?: boolean;
+  /** Per-step model (`provider:model`). Empty: the settings default. */
+  model?: string;
+  /** Per-step effort. Empty: the settings default. */
+  effort?: string;
 }
 
 export type ColumnRules = Partial<Record<ColumnId, ColumnRule>>;
@@ -206,7 +210,12 @@ export interface ContextAction {
   scope: 'story' | 'epic';
   v6?: string;
   v7?: string;
+  /** Per-action model / effort. Empty: the settings default. */
+  model?: string;
+  effort?: string;
 }
+
+export type SortOrder = 'reverse' | 'file';
 
 export interface BoardSettings {
   /** `provider:model`. See README: "Default" is claude-code's sonnet. */
@@ -217,6 +226,16 @@ export interface BoardSettings {
   /** Write the status before launching the column's command (spec B4). */
   writeStatusBeforeRun: boolean;
   pollMs: number;
+  /** `reverse`: last epic / story in the file comes first (default). `file`: as written. */
+  sortOrder: SortOrder;
+  /** Board view: Done column shows its cards (otherwise only a count). */
+  doneShown: boolean;
+  /** Board view column widths in px, by column id. Missing: flexible. */
+  colWidths: Partial<Record<ColumnId, number>>;
+  /** Use the header model / effort instead of the per-step ones from settings. */
+  overrideEnabled: boolean;
+  overrideModel: string;
+  overrideEffort: string;
   showDropped: boolean;
   /** Show epics whose status is `done` (hidden by default: they bury the live work). */
   showDoneEpics: boolean;
@@ -235,6 +254,12 @@ export const DEFAULT_SETTINGS: BoardSettings = {
   dontAsk: false,
   writeStatusBeforeRun: true,
   pollMs: 2500,
+  sortOrder: 'reverse',
+  doneShown: false,
+  colWidths: {},
+  overrideEnabled: false,
+  overrideModel: 'claude-code:sonnet',
+  overrideEffort: '',
   showDropped: false,
   showDoneEpics: false,
   rulesV6: {
@@ -274,6 +299,16 @@ export function mergeSettings(stored: Partial<BoardSettings> | undefined): Board
     ...s,
     rulesV6: { ...DEFAULT_SETTINGS.rulesV6, ...(s.rulesV6 ?? {}) },
     rulesV7: { ...DEFAULT_SETTINGS.rulesV7, ...(s.rulesV7 ?? {}) },
+    colWidths: { ...(s.colWidths ?? {}) },
     actions: Array.isArray(s.actions) && s.actions.length > 0 ? s.actions : DEFAULT_SETTINGS.actions,
   };
+}
+
+/** Model / effort a session gets: the header values when the override box is on, else step, else default. */
+export function resolveModel(
+  st: BoardSettings,
+  step?: { model?: string; effort?: string },
+): { model: string; effort: string } {
+  if (st.overrideEnabled) return { model: st.overrideModel || st.model, effort: st.overrideEffort };
+  return { model: step?.model || st.model, effort: step?.effort || st.effort };
 }
